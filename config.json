@@ -1,0 +1,37 @@
+{
+  "app": {
+    "name": "YouTube Link Manager",
+    "version": "1.0.0",
+    "description": "A web application for managing and organizing YouTube links"
+  },
+  "storage": {
+    "keys": {
+      "youtubeLinks": "youtube_links",
+      "theme": "theme_preference"
+    },
+    "localStorageEnabled": true,
+    "useFileSystemApi": false
+  },
+  "pagination": {
+    "itemsPerPage": 10,
+    "containerId": "pagination-container",
+    "infoClass": "pagination-info",
+    "buttonClass": "pagination-button",
+    "activeButtonClass": "pagination-button-active"
+  },
+  "theme": {
+    "default": "light",
+    "autoDetect": true,
+    "transitionTime": "0.3s"
+  },
+  "linkProcessing": {
+    "videoIdLength": 11,
+    "maxLinksPerBatch": 100,
+    "duplicateDetection": true
+  },
+  "ui": {
+    "animationEnabled": true,
+    "showToastNotifications": true,
+    "toastDuration": 3000
+  }
+}

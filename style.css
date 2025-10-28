@@ -1,0 +1,749 @@
+/* 全局样式 */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* 基础样式 - 深色主题为默认 */
+body {
+    background-color: #000;
+    color: #fff;
+    line-height: 1.6;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* 浅色主题 */
+body.light-theme {
+    background-color: #f8f9fa;
+    color: #333;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* 头部样式 */
+header {
+    text-align: left;
+    margin-bottom: 30px;
+    padding: 20px 0;
+    border-bottom: 1px solid #222;
+    transition: border-color 0.3s;
+    position: relative;
+}
+
+body.light-theme header {
+    border-bottom: 1px solid #ddd;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    font-weight: 300;
+    margin-bottom: 10px;
+    color: #fff;
+    transition: color 0.3s;
+}
+
+body.light-theme header h1 {
+    color: #333;
+}
+
+#subtitle {
+    font-size: 1.1rem;
+    color: #999;
+    transition: opacity 1s ease-in-out, color 0.3s;
+}
+
+body.light-theme #subtitle {
+    color: #666;
+}
+
+/* 链接计数样式 - 数字使用特殊颜色 */
+#header-count, #stored-count {
+    font-size: 1.1rem;
+    white-space: nowrap;
+}
+
+/* 链接计数中的数字高亮样式 */
+.count-number {
+    color: #ff4444;
+    font-weight: bold;
+    font-size: 1.2em;
+    transition: color 0.3s ease;
+}
+
+/* 浅色主题下的数字颜色 */
+body.light-theme .count-number {
+    color: #ff3333;
+}
+
+/* 主要内容区域 */
+main {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 30px;
+}
+
+/* 输入区域样式 */
+.input-section {
+    padding: 20px 0;
+}
+
+.input-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.link-input {
+    flex: 1;
+    padding: 12px 15px;
+    background-color: #111;
+    border: 1px solid #222;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+body.light-theme .link-input {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    color: #333;
+}
+
+.link-input:focus {
+    outline: none;
+    border-color: #ff0000;
+    background-color: #1a1a1a;
+}
+
+body.light-theme .link-input:focus {
+    background-color: #eaeaea;
+}
+
+.status-message {
+    padding: 10px 15px;
+    border-radius: 4px;
+    font-weight: 500;
+    display: none;
+    transition: opacity 0.3s;
+}
+
+.status-message.success {
+    background-color: rgba(46, 125, 50, 0.2);
+    color: #4caf50;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    display: block;
+}
+
+body.light-theme .status-message.success {
+    background-color: rgba(46, 125, 50, 0.1);
+}
+
+.status-message.error {
+    background-color: rgba(244, 67, 54, 0.2);
+    color: #f44336;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    display: block;
+}
+
+body.light-theme .status-message.error {
+    background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* 控制按钮区域 */
+.controls-section {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 20px 0;
+}
+
+@media (min-width: 768px) {
+    .controls-section {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+.btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* 头部按钮区域样式 */
+header .flex.gap-12 {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header .flex.gap-3 {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* 确保按钮与文本间距在8-12px范围内 */
+}
+
+/* 随机推荐按钮区域样式 */
+.random-section .flex.gap-4 {
+    display: flex;
+    gap: 14px; /* 确保两个按钮间距在10-16px范围内 */
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* 响应式布局优化 */
+@media (max-width: 768px) {
+    header .flex.gap-12 {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    
+    header .flex.gap-3 {
+        width: 100%;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    
+    .random-section .flex.gap-4 {
+        width: 100%;
+        gap: 10px;
+    }
+    
+    .random-section .btn {
+        flex: 1;
+        justify-content: center;
+        min-width: 140px;
+    }
+}
+
+.stats {
+    font-size: 1rem;
+    color: #999;
+    font-weight: 400;
+    transition: color 0.3s;
+}
+
+body.light-theme .stats {
+    color: #666;
+}
+
+/* 按钮样式 */
+.btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    background-color: #111;
+    color: #fff;
+}
+
+body.light-theme .btn {
+    background-color: #f1f1f1;
+    color: #333;
+}
+
+/* 清空所有链接按钮的危险操作样式 */
+.clear-btn {
+    background-color: #ff4444 !important;
+    color: white !important;
+}
+
+.clear-btn:hover {
+    background-color: #ff6666 !important;
+}
+
+/* 浅色主题下的危险按钮样式 */
+body.light-theme .clear-btn {
+    background-color: #d32f2f !important;
+}
+
+body.light-theme .clear-btn:hover {
+    background-color: #f44336 !important;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn:hover:not(:disabled) {
+    background-color: #222;
+    transform: translateY(-2px);
+}
+
+body.light-theme .btn:hover:not(:disabled) {
+    background-color: #e0e0e0;
+}
+
+.format-btn {
+    background-color: #3b82f6;
+    color: white;
+    width: 100%;
+    height: 48px;
+    padding: 0 18px;
+    font-size: 0.95rem;
+}
+
+.format-btn:hover:not(:disabled) {
+    background-color: #2563eb;
+}
+
+.add-btn {
+    background-color: #ff0000;
+    color: white;
+    width: 100%;
+    height: 48px;
+    padding: 0 18px;
+    font-size: 0.95rem;
+}
+
+.add-btn:hover:not(:disabled) {
+    background-color: #cc0000;
+}
+
+body.light-theme .add-btn,
+body.light-theme .add-btn:hover:not(:disabled) {
+    background-color: #ff0000;
+    color: white;
+}
+
+.refresh-btn:hover:not(:disabled),
+.select-all-btn:hover:not(:disabled),
+.copy-selected-btn:hover:not(:disabled),
+.clear-btn:hover:not(:disabled) {
+    background-color: #222;
+}
+
+body.light-theme .refresh-btn:hover:not(:disabled),
+body.light-theme .select-all-btn:hover:not(:disabled),
+body.light-theme .copy-selected-btn:hover:not(:disabled),
+body.light-theme .clear-btn:hover:not(:disabled) {
+    background-color: #e0e0e0;
+}
+
+.copy-btn, .delete-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+}
+
+.copy-btn {
+    background-color: #111;
+    color: #fff;
+}
+
+body.light-theme .copy-btn {
+    background-color: #f1f1f1;
+    color: #333;
+}
+
+.copy-btn:hover:not(:disabled) {
+    background-color: #222;
+}
+
+body.light-theme .copy-btn:hover:not(:disabled) {
+    background-color: #e0e0e0;
+}
+
+.delete-btn {
+    background-color: #111;
+    color: #fff;
+}
+
+body.light-theme .delete-btn {
+    background-color: #f1f1f1;
+    color: #333;
+}
+
+.delete-btn:hover:not(:disabled) {
+    background-color: #ff0000;
+    color: white;
+}
+
+body.light-theme .delete-btn:hover:not(:disabled) {
+    background-color: #ff0000;
+    color: white;
+}
+
+.toggle-btn {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: color 0.3s;
+}
+
+body.light-theme .toggle-btn {
+    color: #666;
+}
+
+.toggle-btn:hover {
+    color: #fff;
+}
+
+body.light-theme .toggle-btn:hover {
+    color: #333;
+}
+
+/* 链接列表区域 */
+.random-section, .stored-section {
+    padding: 20px 0;
+}
+
+/* 增加随机推荐按钮与展示框之间的垂直间距 */
+.random-section .mb-6 {
+    margin-bottom: 24px;
+}
+
+/* 已存储链接功能按钮组样式 */
+.stored-actions {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 8px;
+}
+
+.stored-actions .btn {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    min-width: 80px;
+    justify-content: center;
+}
+
+.stored-actions .btn + .btn {
+    margin-left: 8px;
+}
+
+/* 确保所有按钮图标能够正常显示颜色 */
+.btn i {
+    color: inherit !important;
+    opacity: 1 !important;
+}
+
+/* 增强主题切换按钮样式 - 确保与标题垂直对齐 */
+#toggle-theme {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: auto;
+    vertical-align: middle;
+    margin: 0;
+    padding: 10px 16px;
+}
+
+/* 确保清空链接按钮与计数文本对齐并始终在右侧 */
+#clear-all {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto !important;
+    padding: 10px 16px;
+}
+
+/* 确保头部flex布局正确 */
+header .flex.justify-between.items-center {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+/* 确保头部计数和按钮区域的flex布局 */
+header .flex.items-center.justify-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    flex-wrap: nowrap;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+h2 {
+    font-size: 1.5rem;
+    color: #fff;
+    font-weight: 300;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: color 0.3s;
+}
+
+body.light-theme h2 {
+    color: #333;
+}
+
+h2 i {
+    color: #ff0000;
+}
+
+.link-list-container {
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: max-height 0.5s ease;
+}
+
+.link-list-container.hidden {
+    max-height: 0;
+    overflow: hidden;
+}
+
+.link-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.link-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background-color: #111;
+    border-radius: 4px;
+    border-left: 3px solid #ff0000;
+    transition: all 0.3s;
+}
+
+body.light-theme .link-item {
+    background-color: #fff;
+    border-left: 3px solid #ff0000;
+}
+
+.link-item:hover {
+    background-color: #1a1a1a;
+    transform: translateX(5px);
+}
+
+body.light-theme .link-item:hover {
+    background-color: #f5f5f5;
+}
+
+.link-checkbox {
+    margin-right: 15px;
+}
+
+.link-checkbox input[type="checkbox"] {
+    accent-color: #ff0000;
+}
+
+.link-content {
+    flex: 1;
+}
+
+.link-text {
+    word-break: break-all;
+    font-size: 0.9rem;
+    color: #ccc;
+    transition: color 0.3s;
+}
+
+body.light-theme .link-text {
+    color: #666;
+}
+
+.link-timestamp {
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 5px;
+    transition: color 0.3s;
+}
+
+body.light-theme .link-timestamp {
+    color: #999;
+}
+
+.link-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.empty-state {
+    padding: 25px;
+    text-align: center;
+    color: #777;
+    background-color: #111;
+    border-radius: 4px;
+    border: 1px dashed #222;
+    transition: all 0.3s;
+}
+
+body.light-theme .empty-state {
+    color: #999;
+    background-color: #f9f9f9;
+    border: 1px dashed #ddd;
+}
+
+/* 页脚样式 */
+footer {
+    text-align: center;
+    margin-top: 50px;
+    padding: 20px 0;
+    border-top: 1px solid #222;
+    color: #777;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+body.light-theme footer {
+    border-top: 1px solid #ddd;
+    color: #999;
+}
+
+
+
+/* 分页控件样式 */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #111;
+    border-radius: 8px;
+    border: 1px solid #222;
+}
+
+.pagination-info {
+    color: #999;
+    font-size: 0.9rem;
+}
+
+.pagination-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.pagination-btn {
+    background: #ff0000;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: #cc0000;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-btn:disabled {
+    background: #1a1a1a;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* 浅色主题下的分页控件样式 */
+body.light-theme .pagination-container {
+    background: #fff;
+    border: 1px solid #ddd;
+}
+
+body.light-theme .pagination-info {
+    color: #666;
+}
+
+body.light-theme .pagination-btn:disabled {
+    background: #f1f1f1;
+    color: #999;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    .input-container {
+        flex-direction: column;
+    }
+
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .link-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .link-actions {
+        justify-content: flex-end;
+    }
+    
+    /* 分页控件响应式调整 */
+    .pagination-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .pagination-buttons {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.8s forwards;
+}
+
+/* 鼠标跟随元素样式 */
+.mouse-follow-element {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,0,0,0.2) 0%, rgba(255,0,0,0) 70%);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 10;
+}

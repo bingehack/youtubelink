@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube视频链接管理与随机推荐工具</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</head>
+<body class="bg-black text-white min-h-screen">
+    <!-- 鼠标跟随效果容器 -->
+    <div id="mouse-follow-container" class="fixed inset-0 pointer-events-none z-50"></div>
+
+    <div class="container mx-auto-auto px-4 py-8 max-w-6xl">
+        <header class="py-12 border-b border-gray-800 mb-12 relative">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-4xl md:text-5xl font-light">
+                    YouTube<span id="typing-text" class="text-red-500"></span>
+                </h1>
+                <button id="toggle-theme" class="btn theme-toggle bg-gray-800 hover:bg-gray-700 text-white px-5 py-2 rounded-md transition-all duration-300 flex items-center gap-2">
+                    <i class="fa fa-moon-o" aria-hidden="true"></i> 切换主题
+                </button>
+            </div>
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <p class="text-gray-400 text-lg opacity-0" id="subtitle">视频链接管理和随机推荐工具</p>
+                <div class="flex items-center justify-between w-full md:w-auto">
+                    <span class="text-gray-400 text-lg" id="header-count">已存储: 0 个链接</span>
+                    <button id="clear-all" class="btn clear-btn bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-md transition-all duration-300 flex items-center gap-2 ml-auto">
+                        <i class="fa fa-trash" aria-hidden="true"></i> 清空所有链接
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- 链接输入区域 -->
+            <section class="input-section mb-12 opacity-0" data-scroll-reveal>
+                <div class="input-container flex flex-col md:flex-row gap-4">
+                    <textarea id="youtube-link" rows="4" placeholder="输入或粘贴YouTube视频链接，可以输入多行..." class="link-input bg-gray-900 border border-gray-800 text-white px-4 py-3 rounded-md focus:outline-none focus:border-red-500 flex-grow"></textarea>
+                    <div class="flex flex-col gap-2">
+                        <button id="format-links" class="btn format-btn bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-all duration-300 flex items items-center-center justify-center gap-2">
+                            <i class="fa fa-magic" aria-hidden="true"></i> 格式化
+                        </button>
+                        <button id="add-link" class="btn add-btn bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-md transition-all duration-300 flex items-center justify-center gap-2">
+                            <i class="fa fa-plus-circle" aria-hidden="true"></i> 添加
+                        </button>
+                    </div>
+                </div>
+                <div class="status-message mt-4 px-4 py-2 rounded-md hidden" id="input-status"></div>
+            </section>
+
+            <!-- 操作按钮区 - 仅保留刷新随机推荐按钮，其他按钮已移至对应区域 -->
+            <section class="controls-section mb-12 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 opacity-0" data-scroll-reveal data-delay="200">
+                <div class="btn-group flex flex-wrap gap-3">
+                    <!-- 刷新按钮移至随机推荐区域 -->
+                </div>
+            </section>
+
+            <!-- 随机推荐区 -->
+            <section class="random-section mb-12 opacity-0" data-scroll-reveal data-delay="300">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-light flex items-center gap-2 mb-4">
+                        <i class="fa fa-random text-red-500" aria-hidden="true"></i> 随机推荐链接 <span class="text-gray-500 text-lg">(20个)</span>
+                    </h2>
+                    <div class="flex gap-4">
+                    <button id="refresh-random" class="btn refresh-btn bg-gray-800 hover:bg-gray-700 text-white px-5 py-2 rounded-md transition-all duration-300 flex items-center gap-2">
+                        <i class="fa fa-refresh" aria-hidden="true"></i> 刷新随机推荐
+                    </button>
+                    <button id="copy-selected" class="btn copy-selected-btn bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-md transition-all duration-300 flex items-center gap-2">
+                        <i class="fa fa-copy" aria-hidden="true"></i> 复制链接
+                    </button>
+                </div>
+                </div>
+                <div id="random-links" class="link-list bg-gray-900 border border-gray-800 rounded-md p-4 max-h-96 overflow-y-auto">
+                    <!-- 随机推荐的链接将在这里显示 -->
+                    <div class="empty-state text-center text-gray-400 py-8">暂无推荐链接，请先添加YouTube视频链接</div>
+                </div>
+            </section>
+
+            <!-- 已存储链接列表区 -->
+            <section class="stored-section opacity-0" data-scroll-reveal data-delay="400">
+                <div class="section-header flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-light flex items-center gap-2">
+                        <i class="fa fa-list text-red-500" aria-hidden="true"></i> 已存储链接列表
+                    </h2>
+                    <div class="flex items-center gap-4">
+                        <span class="text-gray-400 text-lg" id="stored-count">已存储: 0 个链接</span>
+                        <button id="toggle-list" class="toggle-btn text-gray-400 hover:text-white transition-colors duration-300">
+                            <i class="fa fa-chevron-down" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- 功能按钮组 -->
+                <div class="stored-actions mb-4">
+                    <button id="select-all" class="btn select-all-btn bg-gray-800 hover:bg-gray-700 text-white px-5 py-2 rounded-md transition-all duration-300 flex items-center gap-2">
+                        <i class="fa fa-check-square-o" aria-hidden="true"></i> 全选
+                    </button>
+                    <button id="copy-links" class="btn copy-links-btn bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md transition-all duration-300 flex items-center gap-2 ml-2">
+                        <i class="fa fa-copy" aria-hidden="true"></i> 复制
+                    </button>
+                    <button id="delete-links" class="btn delete-links-btn bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-md transition-all duration-300 flex items-center gap-2 ml-2">
+                        <i class="fa fa-trash" aria-hidden="true"></i> 删除
+                    </button>
+                </div>
+                <div id="stored-links-container" class="link-list-container overflow-hidden transition-all duration-500 max-h-0">
+                    <div id="stored-links" class="link-list space-y-3">
+                        <!-- 已存储的链接将在这里显示 -->
+                        <div class="empty-state bg-gray-900 border border-gray-800 p-8 text-center text-gray-400 rounded-md">暂无存储的链接</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="mt-20 py-8 border-t border-gray-800 text-center text-gray-500 text-sm">
+            <p>© 2025 YouTube视频链接管理和随机推荐工具 | 为博主打造的高效工具</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
