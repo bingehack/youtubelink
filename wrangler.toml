@@ -1,8 +1,0 @@
-# Cloudflare Pages 配置文件
-name = "youtube-link-manager"
-
-# 页面构建输出目录
-pages_build_output_dir = "."
-
-[build]
-command = ""
