@@ -10,8 +10,9 @@ command = ""
 # KV命名空间绑定配置
 [[kv_namespaces]]
 binding = "KV_LINKS"
-# 注意：实际部署时需要在Cloudflare控制台中配置KV命名空间ID
-# preview_id 用于本地开发预览
+# 注意：这些ID是占位符，实际部署时Cloudflare会使用控制台配置的值
+id = "YOUR_KV_NAMESPACE_ID"
+preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
 
 # 注意事项：
 # 1. 此文件用于声明项目配置和KV绑定需求
