@@ -1,0 +1,182 @@
+/**
+ * Cloudflare Pages 适配层
+ * 提供统一的API接口，根据环境自动切换数据存储方式
+ */
+
+// 检测是否在Cloudflare Pages环境中
+const isCloudflarePages = process.env.CLOUDFLARE_PAGES === 'true' || 
+                        window.location.hostname.includes('.pages.dev');
+
+// 根据环境动态配置API基础URL
+const API_BASE_URL = isCloudflarePages ? '/api' : 
+                     process.env.NODE_ENV === 'production' ? '/api' : 
+                     'http://localhost:3000/api';
+
+/**
+ * 从服务器加载链接的统一接口
+ * 自动适配不同环境
+ */
+async function loadLinksFromServer() {
+  try {
+    // 构建完整的API URL
+    const apiUrl = `${API_BASE_URL}/links`;
+    console.log(`Loading links from: ${apiUrl}`);
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const links = await response.json();
+      console.log('Links loaded successfully:', links);
+      return links;
+    } else {
+      console.warn('Failed to load links from server, status:', response.status);
+      // 如果是在开发环境，尝试切换到本地开发服务器
+      if (!isCloudflarePages && API_BASE_URL !== 'http://localhost:3000/api') {
+        console.log('Trying fallback to localhost:3000');
+        const fallbackResponse = await fetch('http://localhost:3000/api/links', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        if (fallbackResponse.ok) {
+          const links = await fallbackResponse.json();
+          console.log('Fallback to localhost successful');
+          return links;
+        }
+      }
+      return null;
+    }
+  } catch (error) {
+    console.warn('Error connecting to server:', error);
+    return null;
+  }
+}
+
+/**
+ * 保存链接到服务器的统一接口
+ * 自动适配不同环境
+ */
+async function saveLinksToServer(links) {
+  try {
+    // 构建完整的API URL
+    const apiUrl = `${API_BASE_URL}/links`;
+    console.log(`Saving links to: ${apiUrl}`);
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ links })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('Links saved to server:', result);
+      return true;
+    } else {
+      console.warn('Failed to save links to server:', await response.text());
+      // 如果是在开发环境，尝试切换到本地开发服务器
+      if (!isCloudflarePages && API_BASE_URL !== 'http://localhost:3000/api') {
+        console.log('Trying fallback to localhost:3000');
+        const fallbackResponse = await fetch('http://localhost:3000/api/links', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ links })
+        });
+        if (fallbackResponse.ok) {
+          console.log('Fallback to localhost successful');
+          return true;
+        }
+      }
+      return false;
+    }
+  } catch (error) {
+    console.warn('Error connecting to server:', error);
+    return false;
+  }
+}
+
+/**
+ * 删除链接的统一接口
+ */
+async function deleteLinkFromServer(linkId) {
+  try {
+    const apiUrl = `${API_BASE_URL}/links/${linkId}`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('Link deleted from server:', result);
+      return true;
+    } else {
+      console.warn('Failed to delete link from server:', await response.text());
+      return false;
+    }
+  } catch (error) {
+    console.warn('Error connecting to server for deletion:', error);
+    return false;
+  }
+}
+
+/**
+ * 清空所有链接的统一接口
+ */
+async function clearLinksFromServer() {
+  try {
+    const apiUrl = `${API_BASE_URL}/links`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('All links cleared from server:', result);
+      return true;
+    } else {
+      console.warn('Failed to clear links from server:', await response.text());
+      return false;
+    }
+  } catch (error) {
+    console.warn('Error connecting to server for clearing:', error);
+    return false;
+  }
+}
+
+/**
+ * 获取当前环境信息
+ */
+function getEnvironmentInfo() {
+  return {
+    isCloudflarePages,
+    apiBaseUrl: API_BASE_URL,
+    environment: process.env.NODE_ENV || 'development'
+  };
+}
+
+// 导出函数
+window.CloudflareAdapter = {
+  loadLinksFromServer,
+  saveLinksToServer,
+  deleteLinkFromServer,
+  clearLinksFromServer,
+  getEnvironmentInfo
+};

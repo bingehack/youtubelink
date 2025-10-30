@@ -258,21 +258,26 @@ async function initApp() {
     }
 }
 
-// 从本地存储加载链接
+// 从服务器加载链接（使用CloudflareAdapter）
 async function loadLinksFromServer() {
-  try {
-    const response = await fetch('/api/links');
-    if (response.ok) {
-      const links = await response.json();
-      console.log('Links loaded from server:', links);
-      return links;
-    } else {
-      console.warn('Failed to load links from server, falling back to localStorage');
+  if (window.CloudflareAdapter && window.CloudflareAdapter.loadLinksFromServer) {
+    return await window.CloudflareAdapter.loadLinksFromServer();
+  } else {
+    // 向后兼容：如果适配器未加载，使用原有实现
+    try {
+      const response = await fetch('/api/links');
+      if (response.ok) {
+        const links = await response.json();
+        console.log('Links loaded from server:', links);
+        return links;
+      } else {
+        console.warn('Failed to load links from server, falling back to localStorage');
+        return null;
+      }
+    } catch (error) {
+      console.warn('Error connecting to server:', error);
       return null;
     }
-  } catch (error) {
-    console.warn('Error connecting to server:', error);
-    return null;
   }
 }
 
@@ -318,28 +323,33 @@ async function loadLinks() {
   return loadLinksFromLocalStorage();
 }
 
-// 保存链接到本地存储
+// 保存链接到服务器（使用CloudflareAdapter）
 async function saveLinksToServer(links) {
-  try {
-    const response = await fetch('/api/links', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ links })
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log('Links saved to server:', result);
-      return true;
-    } else {
-      console.warn('Failed to save links to server:', await response.text());
+  if (window.CloudflareAdapter && window.CloudflareAdapter.saveLinksToServer) {
+    return await window.CloudflareAdapter.saveLinksToServer(links);
+  } else {
+    // 向后兼容：如果适配器未加载，使用原有实现
+    try {
+      const response = await fetch('/api/links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ links })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Links saved to server:', result);
+        return true;
+      } else {
+        console.warn('Failed to save links to server:', await response.text());
+        return false;
+      }
+    } catch (error) {
+      console.warn('Error connecting to server:', error);
       return false;
     }
-  } catch (error) {
-    console.warn('Error connecting to server:', error);
-    return false;
   }
 }
 
