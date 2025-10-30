@@ -156,7 +156,7 @@
 3. **构建配置**
    - **项目名称**: 选择一个描述性的名称
    - **生产分支**: main (或您的主分支名称)
-   - **构建命令**: `echo "No build required"`
+   - **构建命令**: 留空（不填任何内容）
    - **构建输出目录**: `/` (根目录)
    - **环境变量**: 
      - 添加 `NODE_VERSION=16` 或更高版本
@@ -180,6 +180,37 @@
    - 添加几个YouTube链接
    - 刷新页面，确认链接仍然存在
    - 在不同浏览器或隐身模式下访问，验证数据同步是否正常工作
+
+#### 关于wrangler.toml配置
+
+项目中包含了`wrangler.toml`配置文件，这是Cloudflare Pages的推荐配置方式。该文件声明了：
+- 项目名称
+- 主入口文件
+- KV命名空间绑定需求
+
+在本地开发时，您可以安装Wrangler CLI进行本地测试：
+```bash
+npm install -g wrangler
+wrangler pages dev .
+```
+
+#### 部署故障排除
+
+1. **构建命令错误**
+   - 问题：构建命令报错 `Syntax error: Unterminated quoted string`
+   - 解决方案：在Cloudflare Pages配置中，将构建命令留空（不填任何内容）
+
+2. **KV存储问题**
+   - 问题：数据无法保存或读取
+   - 解决方案：确保正确配置了KV命名空间绑定，变量名必须为 `KV_LINKS`
+
+3. **API路由问题**
+   - 问题：API请求失败
+   - 解决方案：检查 `_worker.js` 文件是否正确实现了API路由处理
+
+4. **GitHub仓库同步问题**
+   - 问题：某些文件未正确上传
+   - 解决方案：确保 `_worker.js` 和 `cloudflare-adapter.js` 文件已上传到GitHub仓库
 
 ## 数据存储
 
