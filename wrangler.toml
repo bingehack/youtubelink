@@ -1,16 +1,8 @@
 # Cloudflare Pages 配置文件
 name = "youtube-link-manager"
 
-# 页面构建输出目录（必需的配置）
+# 页面构建输出目录
 pages_build_output_dir = "."
 
 [build]
 command = ""
-
-# 注意：在Cloudflare Pages中，KV命名空间应通过控制台手动配置
-# 无需在wrangler.toml中声明KV绑定，避免构建错误
-
-# 注意事项：
-# 1. 此文件用于声明项目配置和KV绑定需求
-# 2. 实际部署时，KV_LINKS绑定需要在Cloudflare Pages控制台中手动配置
-# 3. 确保在Cloudflare控制台中创建KV命名空间并绑定为KV_LINKS
