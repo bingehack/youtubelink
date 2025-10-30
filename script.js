@@ -258,54 +258,106 @@ async function initApp() {
     }
 }
 
-// 从服务器加载链接（使用CloudflareAdapter）
+// 增强版从服务器加载链接（使用CloudflareAdapter）
 async function loadLinksFromServer() {
-  if (window.CloudflareAdapter && window.CloudflareAdapter.loadLinksFromServer) {
-    return await window.CloudflareAdapter.loadLinksFromServer();
-  } else {
-    // 向后兼容：如果适配器未加载，使用原有实现
-    try {
+  try {
+    if (window.CloudflareAdapter && window.CloudflareAdapter.loadLinksFromServer) {
+      console.log('Using CloudflareAdapter to load links from server');
+      return await window.CloudflareAdapter.loadLinksFromServer();
+    } else {
+      // 向后兼容：如果适配器未加载，使用增强的原有实现
+      console.log('Direct server load attempt (adapter not available)');
       const response = await fetch('/api/links');
-      if (response.ok) {
-        const links = await response.json();
-        console.log('Links loaded from server:', links);
-        return links;
-      } else {
-        console.warn('Failed to load links from server, falling back to localStorage');
+      
+      if (!response.ok) {
+        console.warn(`Failed to load links from server (HTTP ${response.status}), falling back to localStorage`);
         return null;
       }
-    } catch (error) {
-      console.warn('Error connecting to server:', error);
-      return null;
+      
+      const data = await response.json();
+      
+      // 处理增强的API响应格式
+      if (data && data.success && Array.isArray(data.links)) {
+        console.log(`Successfully loaded ${data.links.length} links from server (enhanced API format)`);
+        return data.links;
+      } else if (Array.isArray(data)) {
+        // 兼容旧格式
+        console.log(`Loaded ${data.length} links from server (legacy format)`);
+        return data;
+      } else {
+        console.warn('Received invalid response format from server:', data);
+        return null;
+      }
     }
+  } catch (error) {
+    console.error('Error loading links from server:', error.message);
+    return null;
   }
 }
 
+// 增强版从localStorage加载链接，带数据验证和错误恢复
 function loadLinksFromLocalStorage() {
-    const linksKey = getConfig('storage.keys.youtubeLinks', 'youtube_links');
-    const storedLinks = localStorage.getItem(linksKey);
-    if (storedLinks) {
-        // 解析存储的链接
+    try {
+        const linksKey = getConfig('storage.keys.youtubeLinks', 'youtube_links');
+        const storedLinks = localStorage.getItem(linksKey);
+        
+        if (!storedLinks) {
+            console.log('No links found in localStorage');
+            youtubeLinksItems = [];
+            return youtubeLinksItems;
+        }
+        
+        // 解析存储的链接，带错误捕获
         const parsedLinks = JSON.parse(storedLinks);
         
         // 确保数据格式正确，如果是旧格式（纯URL数组），转换为新格式
-        if (Array.isArray(parsedLinks) && parsedLinks.length > 0) {
+        if (!Array.isArray(parsedLinks)) {
+            console.error('Invalid links format in localStorage - not an array');
+            // 清理损坏的数据
+            localStorage.removeItem(linksKey);
+            youtubeLinksItems = [];
+            return youtubeLinksItems;
+        }
+        
+        if (parsedLinks.length > 0) {
             if (typeof parsedLinks[0] === 'string') {
                 // 旧格式，转换为新格式
-                youtubeLinksItems = parsedLinks.map(url => ({
-                    url: url,
-                    timestamp: new Date().toISOString()
-                }));
+                console.log('Converting legacy link format from localStorage');
+                youtubeLinksItems = parsedLinks
+                    .filter(url => url && typeof url === 'string')
+                    .map(url => ({
+                        url: url,
+                        timestamp: new Date().toISOString()
+                    }));
             } else {
-                // 新格式，直接使用
-                youtubeLinksItems = parsedLinks;
+                // 新格式，先验证每个链接对象
+                console.log('Validating links from localStorage');
+                youtubeLinksItems = parsedLinks.filter(link => {
+                    return link && typeof link === 'object' && link.url && typeof link.url === 'string';
+                });
             }
             
             // 去重
             youtubeLinksItems = removeDuplicates(youtubeLinksItems);
+            console.log(`Loaded ${youtubeLinksItems.length} valid links from localStorage`);
+        } else {
+            youtubeLinksItems = [];
         }
+        
+        return youtubeLinksItems;
+    } catch (error) {
+        console.error('Error loading links from localStorage:', error.message);
+        // 清理损坏的数据
+        try {
+            const linksKey = getConfig('storage.keys.youtubeLinks', 'youtube_links');
+            localStorage.removeItem(linksKey);
+            console.log('Cleared corrupted localStorage data');
+        } catch (cleanupError) {
+            console.error('Failed to clear corrupted localStorage:', cleanupError.message);
+        }
+        youtubeLinksItems = [];
+        return youtubeLinksItems;
     }
-    return youtubeLinksItems;
 }
 
 // 修改后的加载函数，优先从服务器加载
@@ -323,48 +375,140 @@ async function loadLinks() {
   return loadLinksFromLocalStorage();
 }
 
-// 保存链接到服务器（使用CloudflareAdapter）
+// 增强版保存链接到服务器（使用CloudflareAdapter）
 async function saveLinksToServer(links) {
-  if (window.CloudflareAdapter && window.CloudflareAdapter.saveLinksToServer) {
-    return await window.CloudflareAdapter.saveLinksToServer(links);
-  } else {
-    // 向后兼容：如果适配器未加载，使用原有实现
-    try {
+  try {
+    if (window.CloudflareAdapter && window.CloudflareAdapter.saveLinksToServer) {
+      console.log(`Using CloudflareAdapter to save ${links.length} links to server`);
+      return await window.CloudflareAdapter.saveLinksToServer(links);
+    } else {
+      // 向后兼容：如果适配器未加载，使用增强的原有实现
+      console.log(`Direct server save attempt (adapter not available) for ${links.length} links`);
+      
+      // 验证链接数组格式
+      if (!Array.isArray(links)) {
+        console.error('Invalid links format for server save');
+        return false;
+      }
+      
+      // 过滤出有效的链接对象
+      const validLinks = links.filter(link => {
+        return link && typeof link === 'object' && link.url && typeof link.url === 'string';
+      });
+      
+      if (validLinks.length === 0) {
+        console.warn('No valid links to save to server');
+        return false;
+      }
+      
       const response = await fetch('/api/links', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ links })
+        body: JSON.stringify({ links: validLinks })
       });
       
-      if (response.ok) {
+      // 即使响应状态不是200，也尝试解析响应以获取更多信息
+      try {
         const result = await response.json();
-        console.log('Links saved to server:', result);
-        return true;
-      } else {
-        console.warn('Failed to save links to server:', await response.text());
+        
+        if (result.success) {
+          console.log(`Successfully saved ${validLinks.length} links to server`);
+          return true;
+        } else {
+          console.warn(`Server rejected save request: ${result.message || 'Unknown error'}`, 
+            result.error ? `(${result.error})` : '');
+          
+          // 检查是否有关于持久性问题的备注
+          if (result.note) {
+            console.info(`Server note: ${result.note}`);
+            // 显示用户通知
+            if (typeof showNotification === 'function') {
+              showNotification(result.note, 'warning');
+            }
+          }
+          return false;
+        }
+      } catch (parseError) {
+        console.warn(`Failed to parse server response: ${parseError.message}`);
         return false;
       }
-    } catch (error) {
-      console.warn('Error connecting to server:', error);
-      return false;
     }
+  } catch (error) {
+    console.error('Network error saving to server:', error.message);
+    return false;
   }
 }
 
+// 增强版保存链接到localStorage，带错误恢复
 function saveLinksToLocalStorage(links = youtubeLinksItems) {
-    const linksKey = getConfig('storage.keys.youtubeLinks', 'youtube_links');
-    localStorage.setItem(linksKey, JSON.stringify(links));
+    try {
+        const linksKey = getConfig('storage.keys.youtubeLinks', 'youtube_links');
+        
+        // 确保links是数组
+        if (!Array.isArray(links)) {
+            console.error('Invalid links format for localStorage');
+            return false;
+        }
+        
+        // 过滤出有效的链接对象
+        const validLinks = links.filter(link => {
+            return link && typeof link === 'object' && link.url && typeof link.url === 'string';
+        });
+        
+        localStorage.setItem(linksKey, JSON.stringify(validLinks));
+        console.log(`Successfully saved ${validLinks.length} links to localStorage`);
+        return true;
+    } catch (error) {
+        console.error('Error saving links to localStorage:', error.message);
+        
+        // 尝试通过清空localStorage并重新尝试来恢复
+        try {
+            const linksKey = getConfig('storage.keys.youtubeLinks', 'youtube_links');
+            localStorage.removeItem(linksKey);
+            console.log('Cleared localStorage for recovery');
+            // 重试，至少保存一个空数组以确保localStorage状态良好
+            localStorage.setItem(linksKey, JSON.stringify([]));
+            return true;
+        } catch (recoverError) {
+            console.error('Failed to recover localStorage:', recoverError.message);
+            return false;
+        }
+    }
 }
 
-// 修改后的保存函数，同时保存到服务器和localStorage
+// 增强版保存函数，确保数据持久化，同时保存到服务器和localStorage
 async function saveLinks(links = youtubeLinksItems) {
+  console.log(`Starting save operation for ${links.length} links`);
+  
   // 先保存到localStorage（保证本地功能正常）
-  saveLinksToLocalStorage(links);
+  const localSuccess = saveLinksToLocalStorage(links);
+  
+  // 如果localStorage保存失败，显示警告
+  if (!localSuccess) {
+    console.error('Failed to save to localStorage, data may be lost on page refresh');
+    if (typeof showNotification === 'function') {
+      showNotification('本地存储保存失败，刷新页面后数据可能丢失', 'error');
+    }
+    return false;
+  }
   
   // 再尝试保存到服务器
-  await saveLinksToServer(links);
+  const serverSuccess = await saveLinksToServer(links);
+  
+  // 记录操作结果
+  console.log(`Save operation complete - Local: ${localSuccess}, Server: ${serverSuccess}`);
+  
+  // 如果服务器保存失败但本地保存成功，显示提示
+  if (localSuccess && !serverSuccess) {
+    console.warn('Data saved locally but could not be synced to server');
+    if (typeof showNotification === 'function') {
+      showNotification('数据已保存在本地，但无法同步到服务器。在不同浏览器或设备上可能无法访问。', 'warning');
+    }
+  }
+  
+  return localSuccess;
 }
 
 // 移除重复链接
@@ -389,6 +533,43 @@ function isValidYouTubeLink(url) {
     // 简化的YouTube链接验证正则表达式
     const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
     return youtubeRegex.test(url);
+}
+
+// 增强版删除链接从服务器
+async function deleteLinkFromServer(linkId) {
+  try {
+    console.log(`Attempting to delete link with ID: ${linkId}`);
+    
+    if (window.CloudflareAdapter && window.CloudflareAdapter.deleteLinkFromServer) {
+      console.log('Using CloudflareAdapter to delete link');
+      return await window.CloudflareAdapter.deleteLinkFromServer(linkId);
+    } else {
+      // 直接删除实现
+      const response = await fetch(`/api/links/${encodeURIComponent(linkId)}`, {
+        method: 'DELETE'
+      });
+      
+      // 即使响应状态不是200，也尝试解析响应
+      try {
+        const result = await response.json();
+        
+        if (result.success) {
+          console.log(`Successfully deleted link ${linkId} from server`);
+          return true;
+        } else {
+          console.warn(`Failed to delete link from server: ${result.message || 'Unknown error'}`, 
+            result.error ? `(${result.error})` : '');
+          return false;
+        }
+      } catch (parseError) {
+        console.warn(`Failed to parse server response during deletion: ${parseError.message}`);
+        return false;
+      }
+    }
+  } catch (error) {
+    console.error('Network error deleting link from server:', error.message);
+    return false;
+  }
 }
 
 // 提取YouTube视频ID（可选功能）
