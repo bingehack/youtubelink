@@ -185,7 +185,18 @@
    - 选择 "函数" 部分
    - 在 "KV命名空间绑定" 下点击 "添加绑定"
    - **变量名**: `KV_LINKS` (必须使用这个名称，因为代码中已硬编码)
-   - **KV命名空间**: 选择您刚刚创建的命名空间
+   - **KV命名空间配置**:
+      1. 登录Cloudflare控制台
+      2. 导航至 **Workers & Pages** > **KV**
+      3. 点击 **Create namespace** 创建新的KV命名空间
+      4. 输入名称 `YOUTUBE_LINK_KV` (或自定义名称，但需与wrangler.toml中的配置一致)
+      5. 点击创建
+      6. 返回Pages项目，进入**Settings** > **Functions** > **KV namespaces bindings**
+      7. 点击 **Add binding**
+      8. 填写 **Variable name** 为 `KV_LINKS`
+      9. 从下拉菜单中选择您刚刚创建的KV命名空间
+      10. 点击 **Save** 保存配置
+      11. 可选：为预览环境也创建并绑定对应的KV命名空间
    - 点击 "保存"
    - 重要：确保在**预览环境**和**生产环境**都进行相同的绑定配置，否则会出现1019错误
 

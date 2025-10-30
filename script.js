@@ -261,13 +261,36 @@ async function initApp() {
 // 增强版从服务器加载链接（使用CloudflareAdapter）
 async function loadLinksFromServer() {
   try {
+    // 记录加载尝试
+    console.log('Starting server links load operation');
+    const startTime = Date.now();
+    
     if (window.CloudflareAdapter && window.CloudflareAdapter.loadLinksFromServer) {
       console.log('Using CloudflareAdapter to load links from server');
-      return await window.CloudflareAdapter.loadLinksFromServer();
+      const result = await window.CloudflareAdapter.loadLinksFromServer();
+      
+      // 处理适配器返回的结果格式
+      if (result && typeof result === 'object' && result.success && Array.isArray(result.links)) {
+        console.log(`Successfully loaded ${result.links.length} links from server via adapter`);
+        return result.links;
+      } else if (Array.isArray(result)) {
+        console.log(`Loaded ${result.length} links from server via adapter (array format)`);
+        return result;
+      }
+      
+      console.warn('Received unexpected format from CloudflareAdapter:', result);
+      return null;
     } else {
       // 向后兼容：如果适配器未加载，使用增强的原有实现
       console.log('Direct server load attempt (adapter not available)');
-      const response = await fetch('/api/links');
+      const response = await fetch('/api/links', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        // 添加缓存控制以确保获取最新数据
+        cache: 'no-cache'
+      });
       
       if (!response.ok) {
         console.warn(`Failed to load links from server (HTTP ${response.status}), falling back to localStorage`);
@@ -279,6 +302,8 @@ async function loadLinksFromServer() {
       // 处理增强的API响应格式
       if (data && data.success && Array.isArray(data.links)) {
         console.log(`Successfully loaded ${data.links.length} links from server (enhanced API format)`);
+        // 存储服务器数据的版本信息用于后续冲突检测
+        localStorage.setItem('youtube_links_server_timestamp', data.timestamp || new Date().toISOString());
         return data.links;
       } else if (Array.isArray(data)) {
         // 兼容旧格式
@@ -360,19 +385,96 @@ function loadLinksFromLocalStorage() {
     }
 }
 
-// 修改后的加载函数，优先从服务器加载
+// 增强版加载函数，添加数据版本检查和冲突解决
 async function loadLinks() {
-  // 首先尝试从服务器加载
-  const serverLinks = await loadLinksFromServer();
-  if (serverLinks !== null) {
-    // 从服务器加载成功，更新localStorage
-    youtubeLinksItems = serverLinks;
-    saveLinksToLocalStorage();
-    return serverLinks;
-  }
+  console.log('Starting links load process with conflict resolution');
   
-  // 从服务器加载失败，使用localStorage
-  return loadLinksFromLocalStorage();
+  try {
+    // 首先加载本地数据作为基准
+    const localLinks = loadLinksFromLocalStorage();
+    const localTimestamp = localStorage.getItem('youtube_links_local_timestamp') || '0';
+    console.log(`Local storage has ${localLinks.length} links (timestamp: ${localTimestamp})`);
+    
+    // 然后尝试从服务器加载数据
+    const serverLinksResult = await loadLinksFromServer();
+    
+    // 如果服务器加载成功
+    if (serverLinksResult && Array.isArray(serverLinksResult)) {
+      const serverLinks = serverLinksResult;
+      const serverTimestamp = localStorage.getItem('youtube_links_server_timestamp') || '0';
+      console.log(`Server loaded ${serverLinks.length} links (timestamp: ${serverTimestamp})`);
+      
+      // 比较本地和服务器数据，进行智能合并
+      if (serverLinks.length === 0) {
+        // 服务器为空，使用本地数据
+        console.log('Server has no links, using local data and syncing to server');
+        youtubeLinksItems = localLinks;
+        // 尝试将本地数据同步到服务器
+        await saveLinksToServer(localLinks);
+      } else if (localLinks.length === 0) {
+        // 本地为空，使用服务器数据
+        console.log('Local storage is empty, using server data');
+        youtubeLinksItems = serverLinks;
+        saveLinksToLocalStorage(serverLinks);
+      } else {
+        // 两者都有数据，进行智能合并
+        console.log('Both server and local have data, performing smart merge');
+        
+        // 创建URL映射以避免重复
+        const urlMap = new Map();
+        
+        // 优先添加服务器数据
+        serverLinks.forEach(link => {
+          if (link && link.url) {
+            // 规范化URL以去除不同查询参数的影响
+            const normalizedUrl = link.url.split('?')[0].split('#')[0];
+            urlMap.set(normalizedUrl, {
+              ...link,
+              source: 'server',
+              timestamp: link.timestamp || serverTimestamp
+            });
+          }
+        });
+        
+        // 添加本地数据中不存在于服务器的链接
+        localLinks.forEach(link => {
+          if (link && link.url) {
+            const normalizedUrl = link.url.split('?')[0].split('#')[0];
+            if (!urlMap.has(normalizedUrl)) {
+              urlMap.set(normalizedUrl, {
+                ...link,
+                source: 'local',
+                timestamp: link.timestamp || localTimestamp
+              });
+            }
+          }
+        });
+        
+        // 转换回数组并按时间戳排序
+        youtubeLinksItems = Array.from(urlMap.values()).sort((a, b) => {
+          return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+        });
+        
+        console.log(`Smart merge completed: ${youtubeLinksItems.length} unique links`);
+        
+        // 更新双端存储
+        saveLinksToLocalStorage(youtubeLinksItems);
+        await saveLinksToServer(youtubeLinksItems);
+      }
+    } else {
+      // 服务器加载失败，使用本地数据
+      console.log('Falling back to local storage data');
+      youtubeLinksItems = localLinks;
+    }
+    
+    return youtubeLinksItems;
+  } catch (error) {
+    console.error('Error in loadLinks with conflict resolution:', error.message);
+    // 发生错误时，确保至少返回本地数据
+    const fallbackLinks = loadLinksFromLocalStorage();
+    youtubeLinksItems = fallbackLinks;
+    return fallbackLinks;
+  }
 }
 
 // 增强版保存链接到服务器（使用CloudflareAdapter）
@@ -441,10 +543,11 @@ async function saveLinksToServer(links) {
   }
 }
 
-// 增强版保存链接到localStorage，带错误恢复
+// 增强版保存链接到localStorage，带时间戳和错误恢复
 function saveLinksToLocalStorage(links = youtubeLinksItems) {
     try {
         const linksKey = getConfig('storage.keys.youtubeLinks', 'youtube_links');
+        const timestampKey = 'youtube_links_local_timestamp';
         
         // 确保links是数组
         if (!Array.isArray(links)) {
@@ -452,13 +555,26 @@ function saveLinksToLocalStorage(links = youtubeLinksItems) {
             return false;
         }
         
-        // 过滤出有效的链接对象
-        const validLinks = links.filter(link => {
-            return link && typeof link === 'object' && link.url && typeof link.url === 'string';
-        });
+        // 生成当前时间戳
+        const currentTimestamp = new Date().toISOString();
         
+        // 过滤并增强链接对象，确保每个链接都有时间戳和唯一ID
+        const validLinks = links
+            .filter(link => {
+                return link && typeof link === 'object' && link.url && typeof link.url === 'string';
+            })
+            .map(link => ({
+                ...link,
+                id: link.id || generateUniqueId(), // 确保每个链接都有唯一ID
+                timestamp: link.timestamp || currentTimestamp, // 保留现有时间戳或使用当前时间
+                lastUpdated: currentTimestamp // 添加最后更新时间
+            }));
+        
+        // 保存数据和时间戳
         localStorage.setItem(linksKey, JSON.stringify(validLinks));
-        console.log(`Successfully saved ${validLinks.length} links to localStorage`);
+        localStorage.setItem(timestampKey, currentTimestamp);
+        
+        console.log(`Successfully saved ${validLinks.length} links to localStorage at ${currentTimestamp}`);
         return true;
     } catch (error) {
         console.error('Error saving links to localStorage:', error.message);
@@ -466,10 +582,18 @@ function saveLinksToLocalStorage(links = youtubeLinksItems) {
         // 尝试通过清空localStorage并重新尝试来恢复
         try {
             const linksKey = getConfig('storage.keys.youtubeLinks', 'youtube_links');
+            const timestampKey = 'youtube_links_local_timestamp';
+            
+            // 清除存储的数据
             localStorage.removeItem(linksKey);
+            localStorage.removeItem(timestampKey);
             console.log('Cleared localStorage for recovery');
+            
             // 重试，至少保存一个空数组以确保localStorage状态良好
+            const recoveryTimestamp = new Date().toISOString();
             localStorage.setItem(linksKey, JSON.stringify([]));
+            localStorage.setItem(timestampKey, recoveryTimestamp);
+            console.log('Recovery successful, localStorage reset to empty state');
             return true;
         } catch (recoverError) {
             console.error('Failed to recover localStorage:', recoverError.message);
@@ -478,38 +602,160 @@ function saveLinksToLocalStorage(links = youtubeLinksItems) {
     }
 }
 
-// 增强版保存函数，确保数据持久化，同时保存到服务器和localStorage
-async function saveLinks(links = youtubeLinksItems) {
-  console.log(`Starting save operation for ${links.length} links`);
-  
-  // 先保存到localStorage（保证本地功能正常）
-  const localSuccess = saveLinksToLocalStorage(links);
-  
-  // 如果localStorage保存失败，显示警告
-  if (!localSuccess) {
-    console.error('Failed to save to localStorage, data may be lost on page refresh');
-    if (typeof showNotification === 'function') {
-      showNotification('本地存储保存失败，刷新页面后数据可能丢失', 'error');
-    }
-    return false;
-  }
-  
-  // 再尝试保存到服务器
-  const serverSuccess = await saveLinksToServer(links);
-  
-  // 记录操作结果
-  console.log(`Save operation complete - Local: ${localSuccess}, Server: ${serverSuccess}`);
-  
-  // 如果服务器保存失败但本地保存成功，显示提示
-  if (localSuccess && !serverSuccess) {
-    console.warn('Data saved locally but could not be synced to server');
-    if (typeof showNotification === 'function') {
-      showNotification('数据已保存在本地，但无法同步到服务器。在不同浏览器或设备上可能无法访问。', 'warning');
-    }
-  }
-  
-  return localSuccess;
+// 生成唯一ID的辅助函数
+function generateUniqueId() {
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
+
+// 增强版保存函数，确保数据持久化，添加自动重试和同步机制
+async function saveLinks(links = youtubeLinksItems) {
+  console.log(`Starting enhanced save operation for ${links.length} links`);
+  
+  // 记录保存开始时间，用于性能监控
+  const startTime = Date.now();
+  
+  // 首先保存到localStorage（保证本地功能正常）
+  let localSuccess = false;
+  let retryCount = 0;
+  const maxLocalRetries = 2;
+  
+  // 本地存储保存带重试逻辑
+  while (!localSuccess && retryCount < maxLocalRetries) {
+    if (retryCount > 0) {
+      console.log(`Retrying local save (attempt ${retryCount + 1})...`);
+    }
+    localSuccess = saveLinksToLocalStorage(links);
+    retryCount++;
+    
+    // 如果失败且还有重试机会，等待一小段时间
+    if (!localSuccess && retryCount < maxLocalRetries) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  
+  // 如果localStorage保存失败，显示警告并尝试备选方案
+  if (!localSuccess) {
+    console.error('Failed to save to localStorage after multiple attempts');
+    
+    // 尝试使用sessionStorage作为备选
+    try {
+      const fallbackLinks = JSON.stringify(links.filter(link => 
+        link && typeof link === 'object' && link.url && typeof link.url === 'string'
+      ));
+      sessionStorage.setItem('youtube_links_fallback', fallbackLinks);
+      console.log('Fallback to sessionStorage successful');
+      
+      if (typeof showNotification === 'function') {
+        showNotification('本地存储保存失败，已临时保存数据到会话存储。请尽快保存数据！', 'error');
+      }
+    } catch (fallbackError) {
+      console.error('Fallback to sessionStorage failed:', fallbackError);
+      if (typeof showNotification === 'function') {
+        showNotification('所有本地存储方式均失败，请立即备份您的数据！', 'error');
+      }
+      return false;
+    }
+  }
+  
+  // 服务器保存带重试逻辑
+  let serverSuccess = false;
+  retryCount = 0;
+  const maxServerRetries = 3;
+  const retryDelays = [500, 1000, 2000]; // 递增的重试延迟
+  
+  while (!serverSuccess && retryCount < maxServerRetries) {
+    if (retryCount > 0) {
+      console.log(`Retrying server save (attempt ${retryCount + 1})...`);
+      // 等待指定的延迟时间
+      await new Promise(resolve => setTimeout(resolve, retryDelays[retryCount - 1]));
+    }
+    
+    serverSuccess = await saveLinksToServer(links);
+    retryCount++;
+  }
+  
+  // 记录操作结果和性能数据
+  const endTime = Date.now();
+  console.log(`Save operation complete (took ${endTime - startTime}ms) - Local: ${localSuccess}, Server: ${serverSuccess}`);
+  
+  // 根据不同的保存结果显示适当的通知
+  if (localSuccess && serverSuccess) {
+    // 完全成功
+    if (typeof showNotification === 'function') {
+      showNotification('数据已成功保存并同步到服务器', 'success');
+    }
+  } else if (localSuccess && !serverSuccess) {
+    // 本地成功但服务器失败
+    console.warn('Data saved locally but could not be synced to server after multiple retries');
+    
+    // 注册一个同步事件处理器，尝试在网络恢复时同步
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.sync.register('sync-youtube-links');
+        console.log('Background sync registered for when network is available');
+        
+        if (typeof showNotification === 'function') {
+          showNotification('数据已保存在本地，将在网络恢复时自动同步', 'info');
+        }
+      } catch (syncError) {
+        console.warn('Background sync registration failed:', syncError);
+        if (typeof showNotification === 'function') {
+          showNotification('数据已保存在本地，但无法设置自动同步。请稍后手动同步或刷新页面。', 'warning');
+        }
+      }
+    } else {
+      if (typeof showNotification === 'function') {
+        showNotification('数据已保存在本地，但无法同步到服务器。在不同浏览器或设备上可能无法访问。', 'warning');
+      }
+    }
+    
+    // 标记数据需要同步
+    localStorage.setItem('youtube_links_needs_sync', 'true');
+  }
+  
+  return localSuccess; // 即使服务器同步失败，只要本地保存成功，就返回true
+}
+
+// 检查是否有待同步的数据并尝试同步
+async function checkAndSyncPendingData() {
+  try {
+    const needsSync = localStorage.getItem('youtube_links_needs_sync') === 'true';
+    if (needsSync && navigator.onLine) {
+      console.log('Detected pending data that needs syncing...');
+      const localLinks = loadLinksFromLocalStorage();
+      const syncSuccess = await saveLinksToServer(localLinks);
+      
+      if (syncSuccess) {
+        localStorage.removeItem('youtube_links_needs_sync');
+        console.log('Pending data successfully synced to server');
+        if (typeof showNotification === 'function') {
+          showNotification('之前保存的数据已成功同步到服务器', 'success');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking/syncing pending data:', error);
+  }
+}
+
+// 注册网络状态变化监听器
+function registerNetworkListeners() {
+  // 监听在线状态变化
+  window.addEventListener('online', async () => {
+    console.log('Network connection restored, checking for pending syncs...');
+    await checkAndSyncPendingData();
+  });
+  
+  // 监听页面加载
+  window.addEventListener('load', async () => {
+    console.log('Page loaded, checking for pending syncs...');
+    await checkAndSyncPendingData();
+  });
+}
+
+// 在应用初始化时注册监听器
+registerNetworkListeners();
 
 // 移除重复链接
 function removeDuplicates(links) {
