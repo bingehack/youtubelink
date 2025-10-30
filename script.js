@@ -1152,12 +1152,12 @@ function showStatusMessage(message, type, duration = 3000) {
     toast.className = `toast-message ${type}`;
     toast.textContent = message;
     
-    // 设置样式
+    // 设置样式 - 将消息显示在顶部，避免遮挡按钮
     Object.assign(toast.style, {
         position: 'fixed',
-        top: '50%',
+        top: '20px',
         left: '50%',
-        transform: 'translate(-50%, -50%)',
+        transform: 'translateX(-50%)',
         padding: '12px 24px',
         borderRadius: '8px',
         color: 'white',
@@ -1166,24 +1166,28 @@ function showStatusMessage(message, type, duration = 3000) {
         zIndex: '9999',
         fontWeight: 'bold',
         opacity: '0',
-        transition: 'opacity 0.3s ease',
+        transition: 'opacity 0.3s ease, transform 0.3s ease',
         pointerEvents: 'none',
         whiteSpace: 'pre-line', // 支持换行符
         maxWidth: '80%',
-        textAlign: 'center'
+        textAlign: 'center',
+        minWidth: '200px',
+        wordBreak: 'break-word'
     });
     
     // 添加到页面
     document.body.appendChild(toast);
     
-    // 显示弹出层
+    // 显示弹出层 - 添加动画效果
     setTimeout(() => {
         toast.style.opacity = '1';
+        toast.style.transform = 'translateX(-50%) translateY(0)';
     }, 10);
     
     // 指定时间后淡出并移除
     setTimeout(() => {
         toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(-20px)';
         // 等待动画完成后移除元素
         setTimeout(() => {
             document.body.removeChild(toast);
@@ -1962,17 +1966,18 @@ function bindEventListeners() {
     }
     if (elements.copyLinksBtn) {
         elements.copyLinksBtn.addEventListener('click', () => {
-            // 根据选中的链接数量决定复制选中项还是当前页
+            // 根据选中的链接数量执行相应的复制操作
             if (selectedLinks.size > 0) {
                 copySelectedLinks();
             } else {
-                copyCurrentPageLinks();
+                // 如果没有选中项，显示提示而不是默认复制全部
+                showStatusMessage('请先选择要复制的链接', 'info');
             }
         });
     }
     if (elements.deleteLinksBtn) {
         elements.deleteLinksBtn.addEventListener('click', async () => {
-            // 根据选中的链接数量决定删除选中项还是当前页
+            // 根据选中的链接数量执行相应的删除操作
             if (selectedLinks.size > 0) {
                 // 删除选中的链接
                 if (confirm(`确定要删除选中的 ${selectedLinks.size} 个链接吗？此操作不可恢复！`)) {
@@ -1998,8 +2003,8 @@ function bindEventListeners() {
                     showStatusMessage(`成功删除 ${linksToDelete.length} 个链接`, 'info');
                 }
             } else {
-                // 如果没有选中的链接，则删除当前页
-                await deleteCurrentPageLinks();
+                // 如果没有选中的链接，显示提示而不是删除当前页
+                showStatusMessage('请先选择要删除的链接', 'info');
             }
         });
     }
