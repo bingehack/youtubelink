@@ -222,6 +222,9 @@ async function initApp() {
         // 清空已选链接集合
         selectedLinks.clear();
         
+        // 在加载数据前，先检查KV存储状态
+        await checkKVStorageStatus();
+        
         // 优先从服务器加载数据，如果失败则从localStorage加载
         await loadLinks();
         
@@ -271,6 +274,18 @@ async function loadLinksFromServer() {
       
       // 处理适配器返回的结果格式
       if (result && typeof result === 'object' && result.success && Array.isArray(result.links)) {
+        // 检查是否有警告信息
+        if (result.warning) {
+          console.warn('服务器返回警告:', result.warning, result.troubleshooting);
+          if (typeof showNotification === 'function') {
+            showNotification(result.warning, 'warning', 8000);
+            if (result.troubleshooting) {
+              setTimeout(() => {
+                showNotification(result.troubleshooting, 'warning', 10000);
+              }, 3000);
+            }
+          }
+        }
         console.log(`Successfully loaded ${result.links.length} links from server via adapter`);
         return result.links;
       } else if (Array.isArray(result)) {
@@ -294,6 +309,9 @@ async function loadLinksFromServer() {
       
       if (!response.ok) {
         console.warn(`Failed to load links from server (HTTP ${response.status}), falling back to localStorage`);
+        if (typeof showNotification === 'function') {
+          showNotification('无法从服务器加载数据，使用本地存储。刷新页面可能导致数据丢失。', 'error', 5000);
+        }
         return null;
       }
       
@@ -301,6 +319,18 @@ async function loadLinksFromServer() {
       
       // 处理增强的API响应格式
       if (data && data.success && Array.isArray(data.links)) {
+        // 检查是否有警告信息
+        if (data.warning) {
+          console.warn('服务器返回警告:', data.warning, data.troubleshooting);
+          if (typeof showNotification === 'function') {
+            showNotification(data.warning, 'warning', 8000);
+            if (data.troubleshooting) {
+              setTimeout(() => {
+                showNotification(data.troubleshooting, 'warning', 10000);
+              }, 3000);
+            }
+          }
+        }
         console.log(`Successfully loaded ${data.links.length} links from server (enhanced API format)`);
         // 存储服务器数据的版本信息用于后续冲突检测
         localStorage.setItem('youtube_links_server_timestamp', data.timestamp || new Date().toISOString());
@@ -316,6 +346,9 @@ async function loadLinksFromServer() {
     }
   } catch (error) {
     console.error('Error loading links from server:', error.message);
+    if (typeof showNotification === 'function') {
+      showNotification('加载服务器数据出错，使用本地存储。刷新页面可能导致数据丢失。', 'error', 5000);
+    }
     return null;
   }
 }
@@ -527,7 +560,16 @@ async function saveLinksToServer(links) {
             console.info(`Server note: ${result.note}`);
             // 显示用户通知
             if (typeof showNotification === 'function') {
-              showNotification(result.note, 'warning');
+              // 如果是严重错误（如KV存储未配置），显示更详细的通知
+              if (result.critical) {
+                let notificationMessage = `${result.note}\n\n`;
+                if (result.troubleshooting) {
+                  notificationMessage += `解决方法：\n${result.troubleshooting}`;
+                }
+                showNotification(notificationMessage, 'error', 10000); // 延长显示时间
+              } else {
+                showNotification(result.note, 'warning');
+              }
             }
           }
           return false;
@@ -682,7 +724,7 @@ async function saveLinks(links = youtubeLinksItems) {
   if (localSuccess && serverSuccess) {
     // 完全成功
     if (typeof showNotification === 'function') {
-      showNotification('数据已成功保存并同步到服务器', 'success');
+      showNotification('数据已成功保存并同步到服务器', 'info');
     }
   } else if (localSuccess && !serverSuccess) {
     // 本地成功但服务器失败
@@ -730,12 +772,24 @@ async function checkAndSyncPendingData() {
         localStorage.removeItem('youtube_links_needs_sync');
         console.log('Pending data successfully synced to server');
         if (typeof showNotification === 'function') {
-          showNotification('之前保存的数据已成功同步到服务器', 'success');
+          showNotification('之前保存的数据已成功同步到服务器', 'info');
         }
       }
     }
   } catch (error) {
     console.error('Error checking/syncing pending data:', error);
+  }
+}
+
+
+
+// 显示通知函数 - 作为showStatusMessage的别名，确保兼容性
+function showNotification(message, type = 'info', duration = 3000) {
+  if (typeof showStatusMessage === 'function') {
+    showStatusMessage(message, type, duration);
+  } else {
+    console.warn('showStatusMessage not available, using console instead');
+    console[type === 'error' ? 'error' : type === 'warning' ? 'warn' : 'info'](message);
   }
 }
 
@@ -752,6 +806,36 @@ function registerNetworkListeners() {
     console.log('Page loaded, checking for pending syncs...');
     await checkAndSyncPendingData();
   });
+}
+
+// 检查KV存储状态
+async function checkKVStorageStatus() {
+  try {
+    // 发送一个测试请求来检查KV存储状态
+    const response = await fetch('/api/links', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      cache: 'no-cache'
+    });
+    
+    // 即使是200状态，也检查是否有警告信息
+    const data = await response.json();
+    if (data && data.warning) {
+      console.warn('KV存储状态检查发现警告:', data.warning);
+      if (typeof showNotification === 'function') {
+        showNotification(data.warning, 'warning', 8000);
+        if (data.troubleshooting) {
+          setTimeout(() => {
+            showNotification(data.troubleshooting, 'warning', 10000);
+          }, 3000);
+        }
+      }
+    }
+  } catch (error) {
+    console.log('KV storage status check failed, assuming offline mode');
+  }
 }
 
 // 在应用初始化时注册监听器
@@ -1009,22 +1093,27 @@ async function addNewLink() {
         youtubeLinksItems.push(...newLinks);
         
         // 保存到服务器和本地存储
-    await saveLinks();
+        const saveResult = await saveLinks();
+        
+        if (!saveResult) {
+          // 如果保存失败，添加警告
+          errorMessages.push('数据保存失败，请尝试刷新页面后重试');
+        }
         
         // 更新UI
         renderStoredLinks();
         updateStats();
         
         // 显示成功消息
-    statusMessage += `成功添加 ${uniqueValidLinks.length} 个新链接`;
-    
-    // 确保复制链接按钮状态正确更新
-    updateCopySelectedButton();
-    
-    // 如果是第一个链接，自动生成随机推荐
-    if (youtubeLinksItems.length === uniqueValidLinks.length) {
-        generateRandomRecommendations();
-    }
+        statusMessage += `成功添加 ${uniqueValidLinks.length} 个新链接`;
+        
+        // 确保复制链接按钮状态正确更新
+        updateCopySelectedButton();
+        
+        // 如果是第一个链接，自动生成随机推荐
+        if (youtubeLinksItems.length === uniqueValidLinks.length) {
+            generateRandomRecommendations();
+        }
 }
     
     // 显示错误消息 - 使用数组收集消息，避免多余的逗号
@@ -1046,7 +1135,7 @@ async function addNewLink() {
         }
     }
     
-    showStatusMessage(statusMessage, uniqueValidLinks.length > 0 ? 'success' : 'error');
+    showStatusMessage(statusMessage, uniqueValidLinks.length > 0 ? 'info' : 'error');
     
     // 如果所有链接都有效且已添加，清空输入框
     if (uniqueValidLinks.length > 0 && uniqueInvalidLinks.length === 0 && uniqueDuplicateLinks.length === 0) {
@@ -1064,7 +1153,7 @@ async function addNewLink() {
 }
 
 // 显示状态消息 - 使用浮动弹出层而不是修改页面元素
-function showStatusMessage(message, type) {
+function showStatusMessage(message, type, duration = 3000) {
     // 创建浮动弹出层元素
     const toast = document.createElement('div');
     toast.className = `toast-message ${type}`;
@@ -1085,7 +1174,10 @@ function showStatusMessage(message, type) {
         fontWeight: 'bold',
         opacity: '0',
         transition: 'opacity 0.3s ease',
-        pointerEvents: 'none'
+        pointerEvents: 'none',
+        whiteSpace: 'pre-line', // 支持换行符
+        maxWidth: '80%',
+        textAlign: 'center'
     });
     
     // 添加到页面
@@ -1096,14 +1188,14 @@ function showStatusMessage(message, type) {
         toast.style.opacity = '1';
     }, 10);
     
-    // 3秒后淡出并移除
+    // 指定时间后淡出并移除
     setTimeout(() => {
         toast.style.opacity = '0';
         // 等待动画完成后移除元素
         setTimeout(() => {
             document.body.removeChild(toast);
         }, 300);
-    }, 3000);
+    }, duration);
 }
 
 // 生成随机推荐链接
@@ -1291,9 +1383,9 @@ function copyToClipboard(text) {
                 .then(() => {
                     if (text.includes('\n')) {
                         const count = text.split('\n').length;
-                        showStatusMessage(`已复制 ${count} 个链接到剪贴板！`, 'success');
+                        showStatusMessage(`已复制 ${count} 个链接到剪贴板！`, 'info');
                     } else {
-                        showStatusMessage('链接已复制到剪贴板！', 'success');
+                        showStatusMessage('链接已复制到剪贴板！', 'info');
                     }
                     resolve();
                 })

@@ -11,7 +11,13 @@ const corsHeaders = {
 
 // Check if KV storage is available and properly configured
 function kvAvailable() {
-  return typeof KV_LINKS !== 'undefined';
+  const isAvailable = typeof KV_LINKS !== 'undefined';
+  if (!isAvailable) {
+    console.error('CRITICAL ERROR: KV_LINKS is undefined. This means Cloudflare KV storage is not properly bound.');
+    console.error('Please ensure you have created a KV namespace named "YOUTUBE_LINK_KV" in your Cloudflare dashboard');
+    console.error('and properly bound it to the variable name "KV_LINKS" in your Pages project settings.');
+  }
+  return isAvailable;
 }
 
 // Log function that works in both browser and Cloudflare environment
@@ -50,8 +56,8 @@ async function getLinks() {
     return data.links;
   } catch (error) {
     log(`Error getting links from KV storage: ${error.message}`, 'error');
-    return [];
-  }
+      return [];
+    }
 }
 
 // Function to save links with enhanced error handling and validation
@@ -74,12 +80,15 @@ async function saveLinks(links) {
     
     // Check if KV is available
     if (!kvAvailable()) {
-      log('KV storage is not available. Cannot persist data across sessions/devices.', 'error');
+      const errorMsg = 'KV storage is not available. Cannot persist data across sessions/devices.';
+      log(errorMsg, 'error');
       return { 
         success: false, 
-        message: 'KV storage not available', 
-        error: 'KV_LINKS namespace not bound',
-        note: 'Data will only be stored in browser localStorage, not persisted across devices'
+        message: '数据持久化失败', 
+        error: 'KV_LINKS命名空间未绑定',
+        note: '数据只能存储在浏览器本地，页面刷新或更换浏览器后将丢失',
+        critical: true,
+        troubleshooting: '请确保在Cloudflare控制台中创建了名为"YOUTUBE_LINK_KV"的KV命名空间，并在Pages项目设置中正确绑定到变量名"KV_LINKS"'
       };
     }
     
@@ -93,14 +102,16 @@ async function saveLinks(links) {
       totalLinks: validLinks.length
     };
   } catch (error) {
-    log(`Error saving links to KV storage: ${error.message}`, 'error');
-    return { 
-      success: false, 
-      message: 'Failed to save links to server', 
-      error: error.message,
-      note: 'Data will only be stored in browser localStorage, not persisted across devices'
-    };
-  }
+      log(`Error saving links to KV storage: ${error.message}`, 'error');
+      return { 
+        success: false, 
+        message: '保存链接到服务器失败', 
+        error: error.message,
+        note: '数据只能存储在浏览器本地，页面刷新或更换浏览器后将丢失',
+        critical: true,
+        troubleshooting: '可能是KV存储权限问题，请检查Cloudflare控制台中的KV命名空间设置'
+      };
+    }
 }
 
 // Main handler function
@@ -119,13 +130,31 @@ export async function onRequest(context) {
     if (request.method === 'GET') {
       log(`Received GET request to fetch links`, 'info');
       const links = await getLinks();
-      return new Response(JSON.stringify({
+      
+      // 创建响应对象
+      const responseData = {
         success: true,
         links: links,
         count: links.length,
-        message: links.length > 0 ? `Retrieved ${links.length} links` : 'No links found',
         timestamp: new Date().toISOString()
-      }), { headers: corsHeaders });
+      };
+      
+      // 如果KV存储不可用，添加警告信息
+      if (!kvAvailable()) {
+        responseData.warning = '数据持久化配置未完成：KV_LINKS命名空间未绑定。页面刷新或更换浏览器后数据可能丢失。';
+        responseData.troubleshooting = '请确保在Cloudflare控制台中创建了名为"YOUTUBE_LINK_KV"的KV命名空间，并在Pages项目设置中正确绑定到变量名"KV_LINKS"。';
+      }
+      
+      // 根据情况设置消息
+      if (links.length > 0) {
+        responseData.message = `Retrieved ${links.length} links`;
+      } else if (!kvAvailable()) {
+        responseData.message = '未找到链接 - 注意：数据持久化未配置，所有数据仅存储在本地浏览器中';
+      } else {
+        responseData.message = 'No links found';
+      }
+      
+      return new Response(JSON.stringify(responseData), { headers: corsHeaders });
     }
     
     // Handle POST request
