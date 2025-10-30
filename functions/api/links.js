@@ -148,16 +148,10 @@ export async function onRequest(context) {
     if (request.method === 'GET') {
       log(`Received GET request to fetch links`, 'info');
       
-      // 如果KV存储不可用，直接返回空数组而不是尝试读取
+      // 如果KV存储不可用，返回错误响应，明确指示KV存储未配置
       if (!kvAvailable()) {
-        log('KV storage not available, returning empty result for GET request', 'info');
-        return successResponse({
-          success: true,
-          links: [],
-          count: 0,
-          message: 'Links are stored locally in your browser',
-          timestamp: new Date().toISOString()
-        });
+        log('KV storage not available, cannot fetch links from server', 'error');
+        return errorResponse('KV_LINKS命名空间未配置，无法获取跨浏览器数据', 503);
       }
       
       try {
@@ -197,15 +191,10 @@ export async function onRequest(context) {
         });
       }
       
-      // 如果KV存储不可用，返回成功但说明数据仅存储在本地
+      // 如果KV存储不可用，返回错误响应，明确指示KV存储未配置
       if (!kvAvailable()) {
-        log('KV storage not available, skipping server save', 'info');
-        return successResponse({
-          success: true,
-          message: 'Links are stored locally in your browser',
-          note: 'KV存储未配置，使用本地存储进行数据持久化',
-          timestamp: new Date().toISOString()
-        });
+        log('KV storage not available, skipping server save', 'error');
+        return errorResponse('KV_LINKS命名空间未配置，无法进行跨浏览器数据同步', 503);
       }
       
       try {
@@ -228,16 +217,10 @@ export async function onRequest(context) {
     if (request.method === 'DELETE') {
       log(`Received DELETE request to clear all links`, 'info');
       
-      // 如果KV存储不可用，返回成功但说明数据仅存储在本地
+      // 如果KV存储不可用，返回错误响应，明确指示KV存储未配置
       if (!kvAvailable()) {
-        log('KV storage not available, skipping server delete', 'info');
-        return successResponse({
-          success: true,
-          message: '链接已成功删除',
-          action: 'delete',
-          count: 0,
-          timestamp: new Date().toISOString()
-        });
+        log('KV storage not available, skipping server delete', 'error');
+        return errorResponse('KV_LINKS命名空间未配置，无法进行跨浏览器数据同步', 503);
       }
       
       try {

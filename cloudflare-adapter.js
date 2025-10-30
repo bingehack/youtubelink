@@ -34,7 +34,23 @@ async function loadLinksFromServer() {
       console.log('Links loaded successfully:', links);
       return links;
     } else {
-      console.warn('Failed to load links from server, status:', response.status);
+      // 获取错误详情
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { error: '无法解析错误响应' };
+      }
+      
+      console.error('Failed to load links from server:', response.status, errorData);
+      
+      // 如果是503错误，很可能是KV存储未配置
+      if (response.status === 503 && errorData.error && errorData.error.includes('KV_LINKS')) {
+        console.error('KV存储配置问题:', errorData.error);
+        // 抛出特定错误，让调用者知道这是KV存储问题
+        throw new Error(`KV存储配置错误: ${errorData.error}`);
+      }
+      
       // 如果是在开发环境，尝试切换到本地开发服务器
       if (!isCloudflarePages && API_BASE_URL !== 'http://localhost:3000/api') {
         console.log('Trying fallback to localhost:3000');
@@ -50,11 +66,13 @@ async function loadLinksFromServer() {
           return links;
         }
       }
-      return null;
+      
+      // 返回错误对象而不是null，让调用者能够区分不同类型的失败
+      return { success: false, error: errorData.error || `服务器响应错误: ${response.status}` };
     }
   } catch (error) {
-    console.warn('Error connecting to server:', error);
-    return null;
+    console.error('Error connecting to server:', error);
+    throw error; // 重新抛出错误，让调用者处理
   }
 }
 
@@ -81,7 +99,23 @@ async function saveLinksToServer(links) {
       console.log('Links saved to server:', result);
       return true;
     } else {
-      console.warn('Failed to save links to server:', await response.text());
+      // 获取错误详情
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { error: '无法解析错误响应' };
+      }
+      
+      console.error('Failed to save links to server:', response.status, errorData);
+      
+      // 如果是503错误，很可能是KV存储未配置
+      if (response.status === 503 && errorData.error && errorData.error.includes('KV_LINKS')) {
+        console.error('KV存储配置问题:', errorData.error);
+        // 抛出特定错误，让调用者知道这是KV存储问题
+        throw new Error(`KV存储配置错误: ${errorData.error}`);
+      }
+      
       // 如果是在开发环境，尝试切换到本地开发服务器
       if (!isCloudflarePages && API_BASE_URL !== 'http://localhost:3000/api') {
         console.log('Trying fallback to localhost:3000');
@@ -97,12 +131,13 @@ async function saveLinksToServer(links) {
           return true;
         }
       }
+      
       return false;
-    }
-  } catch (error) {
-    console.warn('Error connecting to server:', error);
-    return false;
   }
+  } catch (error) {
+      console.error('Error connecting to server:', error);
+      throw error; // 重新抛出错误，让调用者处理
+    }
 }
 
 /**

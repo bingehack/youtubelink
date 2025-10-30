@@ -707,48 +707,64 @@ async function saveLinks(links = youtubeLinksItems, silent = false) {
   }
   
   // 服务器保存带重试逻辑
-  let serverSuccess = false;
-  retryCount = 0;
-  const maxServerRetries = 3;
-  const retryDelays = [500, 1000, 2000]; // 递增的重试延迟
-  
-  while (!serverSuccess && retryCount < maxServerRetries) {
-    if (retryCount > 0) {
-      console.log(`Retrying server save (attempt ${retryCount + 1})...`);
-      // 等待指定的延迟时间
-      await new Promise(resolve => setTimeout(resolve, retryDelays[retryCount - 1]));
-    }
+    let serverSuccess = false;
+    retryCount = 0;
+    const maxServerRetries = 3;
+    const retryDelays = [500, 1000, 2000]; // 递增的重试延迟
+    let kvStorageError = false;
     
-    serverSuccess = await saveLinksToServer(links);
-    retryCount++;
-  }
+    while (!serverSuccess && retryCount < maxServerRetries && !kvStorageError) {
+      if (retryCount > 0) {
+        console.log(`Retrying server save (attempt ${retryCount + 1})...`);
+        // 等待指定的延迟时间
+        await new Promise(resolve => setTimeout(resolve, retryDelays[retryCount - 1]));
+      }
+      
+      try {
+        serverSuccess = await saveLinksToServer(links);
+      } catch (error) {
+        console.error('Error during server save:', error);
+        // 检查是否是KV存储配置错误
+        if (error.message && error.message.includes('KV存储配置错误')) {
+          kvStorageError = true;
+          console.error('KV存储配置问题:', error.message);
+        }
+      }
+      retryCount++;
+    }
   
   // 记录操作结果和性能数据
   const endTime = Date.now();
   console.log(`Save operation complete (took ${endTime - startTime}ms) - Local: ${localSuccess}, Server: ${serverSuccess}`);
   
   // 根据不同的保存结果显示适当的通知（如果不是静默模式）
-  if (!silent) {
-    if (localSuccess && serverSuccess) {
-      // 完全成功
-      if (typeof showNotification === 'function') {
-        showNotification('数据已成功保存并同步到服务器', 'info');
-      }
-    } else if (localSuccess && !serverSuccess) {
-      // 本地成功但服务器失败
-      console.warn('Data saved locally but could not be synced to server after multiple retries');
-      
-      // 注册一个同步事件处理器，尝试在网络恢复时同步
-      if ('serviceWorker' in navigator && 'SyncManager' in window) {
-        try {
-          const registration = await navigator.serviceWorker.ready;
-          await registration.sync.register('sync-youtube-links');
-          console.log('Background sync registered for when network is available');
-          
-          if (typeof showNotification === 'function') {
-            showNotification('数据已保存在本地，将在网络恢复时自动同步', 'info');
-          }
-        } catch (syncError) {
+    if (!silent) {
+      if (localSuccess && serverSuccess) {
+        // 完全成功
+        if (typeof showNotification === 'function') {
+          showNotification('数据已成功保存并同步到服务器', 'info');
+        }
+      } else if (localSuccess && kvStorageError) {
+        // KV存储配置错误
+        console.error('KV存储配置问题：无法进行跨浏览器数据同步');
+        if (typeof showNotification === 'function') {
+          showNotification('KV存储未正确配置，无法进行跨浏览器数据同步。请检查Cloudflare Pages设置。', 'error');
+        }
+      } else if (localSuccess && !serverSuccess) {
+        // 本地成功但服务器失败
+        console.warn('Data saved locally but could not be synced to server after multiple retries');
+        
+        // 注册一个同步事件处理器，尝试在网络恢复时同步
+        if ('serviceWorker' in navigator && 'SyncManager' in window) {
+          try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.sync.register('sync-youtube-links');
+            console.log('Background sync registered for when network is available');
+            
+            if (typeof showNotification === 'function') {
+              showNotification('数据已保存在本地，将在网络恢复时自动同步', 'info');
+            }
+          } catch (syncError) {
           console.warn('Background sync registration failed:', syncError);
           if (typeof showNotification === 'function') {
             showNotification('数据已保存在本地，但无法设置自动同步。请稍后手动同步或刷新页面。', 'warning');
@@ -762,10 +778,13 @@ async function saveLinks(links = youtubeLinksItems, silent = false) {
     }
   }
   
-  // 无论是否静默模式，都标记数据需要同步
-  if (localSuccess && !serverSuccess) {
+  // 只有在非KV存储错误的情况下才标记需要同步
+  if (localSuccess && !serverSuccess && !kvStorageError) {
     localStorage.setItem('youtube_links_needs_sync', 'true');
   }
+  
+  // 保存KV存储状态到localStorage，供其他浏览器实例检查
+  localStorage.setItem('kv_storage_status', kvStorageError ? 'error' : serverSuccess ? 'ok' : 'pending');
   
   return localSuccess; // 即使服务器同步失败，只要本地保存成功，就返回true
 }
@@ -822,6 +841,18 @@ function registerNetworkListeners() {
 // 检查KV存储状态
 async function checkKVStorageStatus() {
   try {
+    // 首先检查localStorage中的KV存储状态
+    const cachedStatus = localStorage.getItem('kv_storage_status');
+    if (cachedStatus === 'error') {
+      console.error('KV存储状态缓存显示配置错误');
+      // 显示KV存储错误信息
+      if (typeof showNotification === 'function' && !localStorage.getItem('kv_warning_shown')) {
+        showNotification('检测到KV存储未正确配置，无法进行跨浏览器数据同步。请参考README中的部署指南进行配置。', 'error');
+        localStorage.setItem('kv_warning_shown', 'true'); // 避免重复显示
+      }
+      return false;
+    }
+    
     // 发送一个测试请求来检查KV存储状态
     const response = await fetch('/api/links', {
       method: 'GET',
@@ -831,18 +862,54 @@ async function checkKVStorageStatus() {
       cache: 'no-cache'
     });
     
+    if (!response.ok) {
+      // 获取错误详情
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { error: '无法解析错误响应' };
+      }
+      
+      // 检查是否是KV存储配置错误
+      if (response.status === 503 && errorData.error && errorData.error.includes('KV_LINKS')) {
+        console.error('KV存储配置问题:', errorData.error);
+        localStorage.setItem('kv_storage_status', 'error');
+        // 显示KV存储错误信息
+        if (typeof showNotification === 'function' && !localStorage.getItem('kv_warning_shown')) {
+          showNotification(`KV存储配置错误: ${errorData.error}。请参考README中的部署指南进行配置。`, 'error');
+          localStorage.setItem('kv_warning_shown', 'true'); // 避免重复显示
+        }
+        return false;
+      }
+    } else {
+      // 清除之前的错误状态
+      localStorage.removeItem('kv_storage_status');
+      localStorage.removeItem('kv_warning_shown');
+    }
+    
     // 即使是200状态，也检查是否有警告信息
     const data = await response.json();
     if (data && data.warning) {
       console.warn('KV存储状态检查发现警告:', data.warning);
-      // 仅在开发环境显示KV存储相关警告，避免用户困惑
-      if (process.env.NODE_ENV === 'development' && typeof showNotification === 'function') {
-        showNotification(data.warning, 'info', 5000);
+      // 现在在生产环境也显示警告，因为这是重要的配置问题
+      if (typeof showNotification === 'function') {
+        showNotification(data.warning, 'warning', 8000);
       }
     }
+    
+    return true;
   } catch (error) {
-    console.log('KV storage status check failed, assuming offline/standalone mode');
-    // 静默失败，不向用户显示错误，确保应用继续正常工作
+    console.error('KV storage status check failed:', error);
+    // 检查是否是KV存储配置错误
+    if (error.message && error.message.includes('KV存储配置错误')) {
+      localStorage.setItem('kv_storage_status', 'error');
+      if (typeof showNotification === 'function' && !localStorage.getItem('kv_warning_shown')) {
+        showNotification(`KV存储配置错误: ${error.message}。请参考README中的部署指南进行配置。`, 'error');
+        localStorage.setItem('kv_warning_shown', 'true');
+      }
+    }
+    return false;
   }
 }
 
