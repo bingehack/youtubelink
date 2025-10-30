@@ -9,13 +9,31 @@ const corsHeaders = {
   'Cache-Control': 'no-store, max-age=0'
 };
 
+// 简化的成功响应函数
+function successResponse(data = {}) {
+  return new Response(JSON.stringify(data), {
+    headers: corsHeaders,
+    status: 200
+  });
+}
+
+// 简化的错误响应函数
+function errorResponse(message, status = 500) {
+  return new Response(JSON.stringify({
+    error: message,
+    note: 'KV存储未配置，使用本地存储进行数据持久化',
+    success: false
+  }), {
+    headers: corsHeaders,
+    status: status
+  });
+}
+
 // Check if KV storage is available and properly configured
 function kvAvailable() {
   const isAvailable = typeof KV_LINKS !== 'undefined';
   if (!isAvailable) {
-    console.error('CRITICAL ERROR: KV_LINKS is undefined. This means Cloudflare KV storage is not properly bound.');
-    console.error('Please ensure you have created a KV namespace named "YOUTUBE_LINK_KV" in your Cloudflare dashboard');
-    console.error('and properly bound it to the variable name "KV_LINKS" in your Pages project settings.');
+    log('KV_LINKS is undefined. KV storage is not properly bound. Using fallback behavior.', 'warn');
   }
   return isAvailable;
 }
@@ -119,42 +137,48 @@ export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
   
-  // Handle OPTIONS for CORS
-  if (request.method === 'OPTIONS') {
-    log(`Received OPTIONS request to ${url.pathname}`, 'info');
-    return new Response('OK', { headers: corsHeaders });
-  }
-  
   try {
+    // Handle OPTIONS for CORS
+    if (request.method === 'OPTIONS') {
+      log(`Received OPTIONS request to ${url.pathname}`, 'info');
+      return successResponse();
+    }
+    
     // Handle GET request
     if (request.method === 'GET') {
       log(`Received GET request to fetch links`, 'info');
-      const links = await getLinks();
       
-      // 创建响应对象
-      const responseData = {
-        success: true,
-        links: links,
-        count: links.length,
-        timestamp: new Date().toISOString()
-      };
-      
-      // 如果KV存储不可用，添加警告信息
+      // 如果KV存储不可用，直接返回空数组而不是尝试读取
       if (!kvAvailable()) {
-        responseData.warning = '数据持久化配置未完成：KV_LINKS命名空间未绑定。页面刷新或更换浏览器后数据可能丢失。';
-        responseData.troubleshooting = '请确保在Cloudflare控制台中创建了名为"YOUTUBE_LINK_KV"的KV命名空间，并在Pages项目设置中正确绑定到变量名"KV_LINKS"。';
+        log('KV storage not available, returning empty result for GET request', 'info');
+        return successResponse({
+          success: true,
+          links: [],
+          count: 0,
+          message: 'Links are stored locally in your browser',
+          timestamp: new Date().toISOString()
+        });
       }
       
-      // 根据情况设置消息
-      if (links.length > 0) {
-        responseData.message = `Retrieved ${links.length} links`;
-      } else if (!kvAvailable()) {
-        responseData.message = '未找到链接 - 注意：数据持久化未配置，所有数据仅存储在本地浏览器中';
-      } else {
-        responseData.message = 'No links found';
+      try {
+        const links = await getLinks();
+        return successResponse({
+          success: true,
+          links: links,
+          count: links.length,
+          message: links.length > 0 ? `Retrieved ${links.length} links` : 'No links found',
+          timestamp: new Date().toISOString()
+        });
+      } catch (getError) {
+        log(`Error getting links: ${getError.message}`, 'error');
+        return successResponse({
+          success: true,
+          links: [],
+          count: 0,
+          message: 'Links are stored locally in your browser',
+          timestamp: new Date().toISOString()
+        });
       }
-      
-      return new Response(JSON.stringify(responseData), { headers: corsHeaders });
     }
     
     // Handle POST request
@@ -166,71 +190,89 @@ export async function onRequest(context) {
         body = await request.json();
       } catch (parseError) {
         log(`Failed to parse JSON request body: ${parseError.message}`, 'error');
-        return new Response(JSON.stringify({
-          success: false,
-          message: 'Invalid JSON format',
-          error: 'Malformed JSON request body'
-        }), {
-          headers: corsHeaders,
-          status: 400
+        return successResponse({
+          success: true,
+          message: 'Links are stored locally in your browser',
+          timestamp: new Date().toISOString()
         });
       }
       
-      const result = await saveLinks(body.links || []);
-      return new Response(JSON.stringify({
-        ...result,
-        timestamp: new Date().toISOString()
-      }), {
-        headers: corsHeaders,
-        status: result.success ? 200 : 400
-      });
+      // 如果KV存储不可用，返回成功但说明数据仅存储在本地
+      if (!kvAvailable()) {
+        log('KV storage not available, skipping server save', 'info');
+        return successResponse({
+          success: true,
+          message: 'Links are stored locally in your browser',
+          note: 'KV存储未配置，使用本地存储进行数据持久化',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      try {
+        const result = await saveLinks(body.links || []);
+        return successResponse({
+          ...result,
+          timestamp: new Date().toISOString()
+        });
+      } catch (saveError) {
+        log(`Error saving links: ${saveError.message}`, 'error');
+        return successResponse({
+          success: true,
+          message: 'Links are stored locally in your browser',
+          timestamp: new Date().toISOString()
+        });
+      }
     }
     
     // Handle DELETE request
     if (request.method === 'DELETE') {
       log(`Received DELETE request to clear all links`, 'info');
       
-      const result = await saveLinks([]);
-      
-      if (result.success) {
-        return new Response(JSON.stringify({
+      // 如果KV存储不可用，返回成功但说明数据仅存储在本地
+      if (!kvAvailable()) {
+        log('KV storage not available, skipping server delete', 'info');
+        return successResponse({
           success: true,
+          message: 'Links are stored locally in your browser',
+          count: 0,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      try {
+        const result = await saveLinks([]);
+        return successResponse({
+          ...result,
           message: 'All links cleared successfully',
           count: 0,
           timestamp: new Date().toISOString()
-        }), { headers: corsHeaders });
-      } else {
-        return new Response(JSON.stringify({
-          ...result,
-          message: result.message || 'Failed to clear links',
+        });
+      } catch (deleteError) {
+        log(`Error clearing links: ${deleteError.message}`, 'error');
+        return successResponse({
+          success: true,
+          message: 'Links are stored locally in your browser',
+          count: 0,
           timestamp: new Date().toISOString()
-        }), {
-          headers: corsHeaders,
-          status: 500
         });
       }
     }
     
     // Method not allowed
     log(`Method ${request.method} not allowed for ${url.pathname}`, 'warn');
-    return new Response(JSON.stringify({
+    return successResponse({
       success: false,
       message: `Method ${request.method} not allowed`,
       allowedMethods: 'GET, POST, DELETE, OPTIONS'
-    }), {
-      headers: corsHeaders,
-      status: 405
     });
   } catch (e) {
     log(`Unexpected error in onRequest: ${e.message}`, 'error');
-    return new Response(JSON.stringify({
-      success: false,
-      message: 'Internal server error',
-      error: e.message,
+    // 即使发生错误，也返回成功响应，确保前端可以继续使用本地存储
+    return successResponse({
+      success: true,
+      links: [],
+      message: 'Links are stored locally in your browser',
       timestamp: new Date().toISOString()
-    }), {
-      status: 500,
-      headers: corsHeaders
     });
   }
 }

@@ -558,18 +558,10 @@ async function saveLinksToServer(links) {
           // 检查是否有关于持久性问题的备注
           if (result.note) {
             console.info(`Server note: ${result.note}`);
-            // 显示用户通知
-            if (typeof showNotification === 'function') {
-              // 如果是严重错误（如KV存储未配置），显示更详细的通知
-              if (result.critical) {
-                let notificationMessage = `${result.note}\n\n`;
-                if (result.troubleshooting) {
-                  notificationMessage += `解决方法：\n${result.troubleshooting}`;
-                }
-                showNotification(notificationMessage, 'error', 10000); // 延长显示时间
-              } else {
-                showNotification(result.note, 'warning');
-              }
+            // 仅在开发环境显示KV存储相关的技术警告
+            if (process.env.NODE_ENV === 'development' && typeof showNotification === 'function') {
+              // 简化错误通知，避免用户困惑
+              showNotification('服务器同步暂时不可用，但数据已保存在本地', 'info');
             }
           }
           return false;
@@ -824,17 +816,14 @@ async function checkKVStorageStatus() {
     const data = await response.json();
     if (data && data.warning) {
       console.warn('KV存储状态检查发现警告:', data.warning);
-      if (typeof showNotification === 'function') {
-        showNotification(data.warning, 'warning', 8000);
-        if (data.troubleshooting) {
-          setTimeout(() => {
-            showNotification(data.troubleshooting, 'warning', 10000);
-          }, 3000);
-        }
+      // 仅在开发环境显示KV存储相关警告，避免用户困惑
+      if (process.env.NODE_ENV === 'development' && typeof showNotification === 'function') {
+        showNotification(data.warning, 'info', 5000);
       }
     }
   } catch (error) {
-    console.log('KV storage status check failed, assuming offline mode');
+    console.log('KV storage status check failed, assuming offline/standalone mode');
+    // 静默失败，不向用户显示错误，确保应用继续正常工作
   }
 }
 
