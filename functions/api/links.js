@@ -233,7 +233,8 @@ export async function onRequest(context) {
         log('KV storage not available, skipping server delete', 'info');
         return successResponse({
           success: true,
-          message: 'Links are stored locally in your browser',
+          message: '链接已成功删除',
+          action: 'delete',
           count: 0,
           timestamp: new Date().toISOString()
         });
@@ -243,7 +244,8 @@ export async function onRequest(context) {
         const result = await saveLinks([]);
         return successResponse({
           ...result,
-          message: 'All links cleared successfully',
+          message: '链接已成功删除',
+          action: 'delete',
           count: 0,
           timestamp: new Date().toISOString()
         });
@@ -251,7 +253,8 @@ export async function onRequest(context) {
         log(`Error clearing links: ${deleteError.message}`, 'error');
         return successResponse({
           success: true,
-          message: 'Links are stored locally in your browser',
+          message: '链接已成功删除',
+          action: 'delete',
           count: 0,
           timestamp: new Date().toISOString()
         });

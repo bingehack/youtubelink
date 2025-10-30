@@ -642,7 +642,7 @@ function generateUniqueId() {
 }
 
 // 增强版保存函数，确保数据持久化，添加自动重试和同步机制
-async function saveLinks(links = youtubeLinksItems) {
+async function saveLinks(links = youtubeLinksItems, silent = false) {
   console.log(`Starting enhanced save operation for ${links.length} links`);
   
   // 记录保存开始时间，用于性能监控
@@ -712,39 +712,43 @@ async function saveLinks(links = youtubeLinksItems) {
   const endTime = Date.now();
   console.log(`Save operation complete (took ${endTime - startTime}ms) - Local: ${localSuccess}, Server: ${serverSuccess}`);
   
-  // 根据不同的保存结果显示适当的通知
-  if (localSuccess && serverSuccess) {
-    // 完全成功
-    if (typeof showNotification === 'function') {
-      showNotification('数据已成功保存并同步到服务器', 'info');
-    }
-  } else if (localSuccess && !serverSuccess) {
-    // 本地成功但服务器失败
-    console.warn('Data saved locally but could not be synced to server after multiple retries');
-    
-    // 注册一个同步事件处理器，尝试在网络恢复时同步
-    if ('serviceWorker' in navigator && 'SyncManager' in window) {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        await registration.sync.register('sync-youtube-links');
-        console.log('Background sync registered for when network is available');
-        
-        if (typeof showNotification === 'function') {
-          showNotification('数据已保存在本地，将在网络恢复时自动同步', 'info');
-        }
-      } catch (syncError) {
-        console.warn('Background sync registration failed:', syncError);
-        if (typeof showNotification === 'function') {
-          showNotification('数据已保存在本地，但无法设置自动同步。请稍后手动同步或刷新页面。', 'warning');
-        }
-      }
-    } else {
+  // 根据不同的保存结果显示适当的通知（如果不是静默模式）
+  if (!silent) {
+    if (localSuccess && serverSuccess) {
+      // 完全成功
       if (typeof showNotification === 'function') {
-        showNotification('数据已保存在本地，但无法同步到服务器。在不同浏览器或设备上可能无法访问。', 'warning');
+        showNotification('数据已成功保存并同步到服务器', 'info');
+      }
+    } else if (localSuccess && !serverSuccess) {
+      // 本地成功但服务器失败
+      console.warn('Data saved locally but could not be synced to server after multiple retries');
+      
+      // 注册一个同步事件处理器，尝试在网络恢复时同步
+      if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          await registration.sync.register('sync-youtube-links');
+          console.log('Background sync registered for when network is available');
+          
+          if (typeof showNotification === 'function') {
+            showNotification('数据已保存在本地，将在网络恢复时自动同步', 'info');
+          }
+        } catch (syncError) {
+          console.warn('Background sync registration failed:', syncError);
+          if (typeof showNotification === 'function') {
+            showNotification('数据已保存在本地，但无法设置自动同步。请稍后手动同步或刷新页面。', 'warning');
+          }
+        }
+      } else {
+        if (typeof showNotification === 'function') {
+          showNotification('数据已保存在本地，但无法同步到服务器。在不同浏览器或设备上可能无法访问。', 'warning');
+        }
       }
     }
-    
-    // 标记数据需要同步
+  }
+  
+  // 无论是否静默模式，都标记数据需要同步
+  if (localSuccess && !serverSuccess) {
     localStorage.setItem('youtube_links_needs_sync', 'true');
   }
   
@@ -1608,8 +1612,8 @@ async function deleteLink(link) {
             // 从已选链接中移除
             selectedLinks.delete(link);
             
-            // 保存到服务器和本地存储
-    await saveLinks();
+            // 保存到服务器和本地存储，静默保存不显示通知
+            await saveLinks(youtubeLinksItems, true);
             
             // 更新UI
             renderStoredLinks();
@@ -1618,7 +1622,7 @@ async function deleteLink(link) {
             updateCopySelectedButton();
             
             // 显示成功消息
-            showStatusMessage('链接已删除！', 'success');
+            showStatusMessage('链接已删除！', 'info');
         } else {
             console.log('未找到链接:', link);
             showStatusMessage('未找到链接，删除失败', 'error');
@@ -1957,11 +1961,46 @@ function bindEventListeners() {
         elements.selectAllBtn.addEventListener('click', selectAllCurrentPage);
     }
     if (elements.copyLinksBtn) {
-        elements.copyLinksBtn.addEventListener('click', copyCurrentPageLinks);
+        elements.copyLinksBtn.addEventListener('click', () => {
+            // 根据选中的链接数量决定复制选中项还是当前页
+            if (selectedLinks.size > 0) {
+                copySelectedLinks();
+            } else {
+                copyCurrentPageLinks();
+            }
+        });
     }
     if (elements.deleteLinksBtn) {
         elements.deleteLinksBtn.addEventListener('click', async () => {
-            await deleteCurrentPageLinks();
+            // 根据选中的链接数量决定删除选中项还是当前页
+            if (selectedLinks.size > 0) {
+                // 删除选中的链接
+                if (confirm(`确定要删除选中的 ${selectedLinks.size} 个链接吗？此操作不可恢复！`)) {
+                    const linksToDelete = Array.from(selectedLinks);
+                    
+                    // 从数组中删除选中的链接
+                    youtubeLinksItems = youtubeLinksItems.filter(linkItem => 
+                        !linksToDelete.includes(linkItem.url)
+                    );
+                    
+                    // 清空选中链接集合
+                    selectedLinks.clear();
+                    
+                    // 静默保存
+                    await saveLinks(youtubeLinksItems, true);
+                    
+                    // 更新UI
+                    renderStoredLinks();
+                    generateRandomRecommendations();
+                    updateStats();
+                    updateCopySelectedButton();
+                    
+                    showStatusMessage(`成功删除 ${linksToDelete.length} 个链接`, 'info');
+                }
+            } else {
+                // 如果没有选中的链接，则删除当前页
+                await deleteCurrentPageLinks();
+            }
         });
     }
 }
