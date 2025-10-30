@@ -428,10 +428,22 @@ async function loadLinks() {
     const localTimestamp = localStorage.getItem('youtube_links_local_timestamp') || '0';
     console.log(`Local storage has ${localLinks.length} links (timestamp: ${localTimestamp})`);
     
-    // 然后尝试从服务器加载数据
-    const serverLinksResult = await loadLinksFromServer();
+    // 然后尝试从服务器加载数据 - 优先使用CloudflareAdapter
+    let serverLinksResult = null;
+    try {
+      // 优先使用CloudflareAdapter的方法
+      if (window.CloudflareAdapter && window.CloudflareAdapter.loadLinksFromServer) {
+        console.log('Using CloudflareAdapter to load links from server');
+        serverLinksResult = await window.CloudflareAdapter.loadLinksFromServer();
+      } else {
+        // 备用方法
+        serverLinksResult = await loadLinksFromServer();
+      }
+    } catch (serverError) {
+      console.warn('Server load failed:', serverError.message);
+    }
     
-    // 如果服务器加载成功
+    // 处理服务器返回的数据
     if (serverLinksResult && Array.isArray(serverLinksResult)) {
       const serverLinks = serverLinksResult;
       const serverTimestamp = localStorage.getItem('youtube_links_server_timestamp') || '0';
@@ -439,16 +451,18 @@ async function loadLinks() {
       
       // 比较本地和服务器数据，进行智能合并
       if (serverLinks.length === 0) {
-        // 服务器为空，使用本地数据
-        console.log('Server has no links, using local data and syncing to server');
-        youtubeLinksItems = localLinks;
-        // 尝试将本地数据同步到服务器
-        await saveLinksToServer(localLinks);
+        // 服务器为空，同步清空本地存储并更新UI
+        console.log('Server has no links, syncing local storage to empty state');
+        youtubeLinksItems = [];
+        saveLinksToLocalStorage([]);
+        // 更新KV存储时间戳
+        localStorage.setItem('youtube_links_server_timestamp', new Date().toISOString());
       } else if (localLinks.length === 0) {
         // 本地为空，使用服务器数据
         console.log('Local storage is empty, using server data');
         youtubeLinksItems = serverLinks;
         saveLinksToLocalStorage(serverLinks);
+        localStorage.setItem('youtube_links_server_timestamp', new Date().toISOString());
       } else {
         // 两者都有数据，进行智能合并
         console.log('Both server and local have data, performing smart merge');
@@ -493,6 +507,7 @@ async function loadLinks() {
         // 更新双端存储
         saveLinksToLocalStorage(youtubeLinksItems);
         await saveLinksToServer(youtubeLinksItems);
+        localStorage.setItem('youtube_links_server_timestamp', new Date().toISOString());
       }
     } else {
       // 服务器加载失败，使用本地数据
@@ -1029,7 +1044,8 @@ async function addNewLink() {
         return;
     }
     
-
+    // 显示错误消息 - 使用数组收集消息，避免多余的逗号
+    const errorMessages = [];
     
     // 改进的链接提取方式：首先按行分割，然后在每行中寻找所有以https开头的链接
     const validLinks = [];
@@ -1085,32 +1101,34 @@ async function addNewLink() {
         // 添加到列表
         youtubeLinksItems.push(...newLinks);
         
-        // 保存到服务器和本地存储
-        const saveResult = await saveLinks();
-        
-        if (!saveResult) {
-          // 如果保存失败，添加警告
-          errorMessages.push('数据保存失败，请尝试刷新页面后重试');
+        try {
+            // 保存到服务器和本地存储
+            await saveLinks();
+            
+            // 更新UI
+            renderStoredLinks();
+            updateStats();
+            
+            // 显示成功消息
+            statusMessage += `成功添加 ${uniqueValidLinks.length} 个新链接`;
+            
+            // 清空输入框 - 只要有链接被成功添加就清空
+            elements.youtubeLinkInput.value = '';
+            // 重置输入框高度为默认尺寸
+            elements.youtubeLinkInput.style.height = 'auto';
+            
+        } catch (saveError) {
+            console.error('保存链接时出错:', saveError);
+            errorMessages.push('数据保存失败，请尝试刷新页面后重试');
         }
-        
-        // 更新UI
-        renderStoredLinks();
-        updateStats();
-        
-        // 显示成功消息
-        statusMessage += `成功添加 ${uniqueValidLinks.length} 个新链接`;
         
         // 确保复制链接按钮状态正确更新
         updateCopySelectedButton();
         
-        // 如果是第一个链接，自动生成随机推荐
-        if (youtubeLinksItems.length === uniqueValidLinks.length) {
-            generateRandomRecommendations();
-        }
-}
+        // 重新生成随机推荐
+        generateRandomRecommendations();
+    }
     
-    // 显示错误消息 - 使用数组收集消息，避免多余的逗号
-    const errorMessages = [];
     if (uniqueInvalidLinks.length > 0) {
         errorMessages.push(`${uniqueInvalidLinks.length} 个无效链接未添加`);
     }
@@ -1128,25 +1146,35 @@ async function addNewLink() {
         }
     }
     
+    // 确保消息被显示 - 使用非异步方式直接调用
     showStatusMessage(statusMessage, uniqueValidLinks.length > 0 ? 'info' : 'error');
-    
-    // 如果所有链接都有效且已添加，清空输入框
-    if (uniqueValidLinks.length > 0 && uniqueInvalidLinks.length === 0 && uniqueDuplicateLinks.length === 0) {
-        elements.youtubeLinkInput.value = '';
-        // 重置输入框高度为默认尺寸
-        elements.youtubeLinkInput.style.height = 'auto';
-    }
-    
-    // 如果有有效的新链接添加，重新生成随机推荐
-    if (uniqueValidLinks.length > 0) {
-        generateRandomRecommendations();
-        // 确保复制链接按钮状态正确更新
-        updateCopySelectedButton();
-    }
 }
 
 // 显示状态消息 - 使用浮动弹出层而不是修改页面元素
+// Toast消息队列管理
+const toastQueue = [];
+let isProcessingQueue = false;
+
 function showStatusMessage(message, type, duration = 3000) {
+    // 将消息添加到队列
+    toastQueue.push({ message, type, duration });
+    
+    // 如果队列未在处理中，开始处理
+    if (!isProcessingQueue) {
+        // 使用非异步方式启动处理，避免异步问题
+        processNextToast();
+    }
+}
+
+function processNextToast() {
+    if (toastQueue.length === 0) {
+        isProcessingQueue = false;
+        return;
+    }
+    
+    isProcessingQueue = true;
+    const { message, type, duration } = toastQueue.shift();
+    
     // 创建浮动弹出层元素
     const toast = document.createElement('div');
     toast.className = `toast-message ${type}`;
@@ -1157,7 +1185,7 @@ function showStatusMessage(message, type, duration = 3000) {
         position: 'fixed',
         top: '20px',
         left: '50%',
-        transform: 'translateX(-50%)',
+        transform: 'translateX(-50%) translateY(-50px)',
         padding: '12px 24px',
         borderRadius: '8px',
         color: 'white',
@@ -1182,17 +1210,19 @@ function showStatusMessage(message, type, duration = 3000) {
     setTimeout(() => {
         toast.style.opacity = '1';
         toast.style.transform = 'translateX(-50%) translateY(0)';
-    }, 10);
-    
-    // 指定时间后淡出并移除
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(-50%) translateY(-20px)';
-        // 等待动画完成后移除元素
+        
+        // 等待消息显示时间后淡出
         setTimeout(() => {
-            document.body.removeChild(toast);
-        }, 300);
-    }, duration);
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(-20px)';
+            
+            // 等待动画完成后移除元素并处理下一个
+            setTimeout(() => {
+                document.body.removeChild(toast);
+                processNextToast();
+            }, 300);
+        }, duration);
+    }, 10);
 }
 
 // 生成随机推荐链接
@@ -1645,27 +1675,38 @@ async function clearAllLinks() {
     const userConfirmed = confirm('确定要清空所有链接吗？此操作不可恢复！');
     
     if (userConfirmed) {
-        // 清空链接数组
-        youtubeLinksItems = [];
-        
-        // 清空已选链接
-        selectedLinks.clear();
-        
-        // 保存到服务器和本地存储
-    await saveLinks();
-        
-        // 更新UI
-        renderStoredLinks();
-        generateRandomRecommendations();
-        updateStats();
-        updateCopySelectedButton();
-        
-        // 自动调整输入框高度
-        elements.youtubeLinkInput.style.height = 'auto';
-        elements.youtubeLinkInput.style.height = (elements.youtubeLinkInput.scrollHeight) + 'px';
-        
-        // 显示成功消息
-        showStatusMessage('所有链接已清空！', 'success');
+        try {
+            // 清空链接数组
+            youtubeLinksItems = [];
+            
+            // 清空已选链接
+            selectedLinks.clear();
+            
+            // 立即更新UI以提供即时反馈
+            renderStoredLinks();
+            generateRandomRecommendations();
+            updateStats();
+            updateCopySelectedButton();
+            
+            // 自动调整输入框高度
+            elements.youtubeLinkInput.style.height = 'auto';
+            elements.youtubeLinkInput.style.height = (elements.youtubeLinkInput.scrollHeight) + 'px';
+            
+            // 保存到服务器和本地存储
+            await saveLinks();
+            
+            // 显示成功消息
+            showStatusMessage('所有链接已清空！', 'success');
+        } catch (error) {
+            console.error('清空链接时出错:', error);
+            showStatusMessage('清空链接失败: ' + error.message, 'error');
+            // 出错时重新加载数据
+            await loadLinks();
+            renderStoredLinks();
+            generateRandomRecommendations();
+            updateStats();
+            updateCopySelectedButton();
+        }
     }
 }
 

@@ -4,12 +4,12 @@
  */
 
 // 检测是否在Cloudflare Pages环境中
-const isCloudflarePages = process.env.CLOUDFLARE_PAGES === 'true' || 
+const isCloudflarePages = (typeof process !== 'undefined' && process.env && process.env.CLOUDFLARE_PAGES === 'true') || 
                         window.location.hostname.includes('.pages.dev');
 
 // 根据环境动态配置API基础URL
 const API_BASE_URL = isCloudflarePages ? '/api' : 
-                     process.env.NODE_ENV === 'production' ? '/api' : 
+                     (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production') ? '/api' : 
                      'http://localhost:3000/api';
 
 /**
@@ -168,7 +168,7 @@ function getEnvironmentInfo() {
   return {
     isCloudflarePages,
     apiBaseUrl: API_BASE_URL,
-    environment: process.env.NODE_ENV || 'development'
+    environment: (typeof process !== 'undefined' && process.env && process.env.NODE_ENV) || 'development'
   };
 }
 
