@@ -8,11 +8,13 @@ pages_build_output_dir = "."
 command = ""
 
 # KV命名空间绑定配置
+# 注意：在Cloudflare Pages中，KV命名空间通过控制台绑定
+# 以下配置仅用于声明绑定名称，实际ID在部署时由Cloudflare控制台配置
 [[kv_namespaces]]
 binding = "KV_LINKS"
-# 注意：这些ID是占位符，实际部署时Cloudflare会使用控制台配置的值
-id = "YOUR_KV_NAMESPACE_ID"
-preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
+# 使用空字符串作为占位符，避免构建错误
+id = ""
+preview_id = ""
 
 # 注意事项：
 # 1. 此文件用于声明项目配置和KV绑定需求
