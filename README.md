@@ -130,11 +130,20 @@
 
 ### 通过Cloudflare Pages部署
 
-本应用支持通过Cloudflare Pages部署，解决数据持久性问题。我们实现了一个双层数据存储架构：
+本应用支持通过Cloudflare Pages部署，使用Pages Functions和KV存储解决数据持久性问题。我们实现了一个双层数据存储架构：
 
 1. **Cloudflare KV存储** - 作为主要的数据持久化方案，确保数据在不同设备间共享
 2. **本地localStorage** - 作为备份和离线使用支持
 3. **环境适配层** - 自动根据运行环境切换API调用方式
+
+### 部署架构
+
+应用使用最新的Cloudflare Pages Functions结构，具有以下特点：
+
+- API端点通过`/functions`目录结构自动路由
+- 简化的Worker脚本避免请求冲突
+- 增强的错误处理和响应格式
+- 更符合Cloudflare Pages的最佳实践
 
 #### 部署步骤
 
@@ -182,6 +191,26 @@
    - 刷新页面，确认链接仍然存在
    - 在不同浏览器或隐身模式下访问，验证数据同步是否正常工作
 
+### Pages Functions架构说明
+
+本项目使用Cloudflare Pages Functions的目录结构来处理API请求：
+
+```
+/functions/
+  /api/
+    links.js         # 处理 /api/links 的 GET, POST, DELETE 请求
+    /links/
+      [linkId].js    # 处理 /api/links/{linkId} 的 DELETE 请求
+```
+
+这种结构的优势：
+
+- 自动路由到对应的处理函数，无需手动配置路由
+- 支持动态路由参数（如 `[linkId]`）
+- 更清晰的代码组织，便于维护和扩展
+- 符合Cloudflare Pages的最佳实践
+- 减少与Worker脚本的冲突可能
+
 #### KV 绑定配置验证
 
 为确保 KV 绑定正确配置，避免1019错误，可以执行以下检查：
@@ -193,6 +222,10 @@
 
 #### 1019错误故障排除
 
+错误1019可能由三种主要原因导致：
+
+##### 1. KV命名空间未找到
+
 如果遇到 `Error 1019: KV namespace not found` 错误，请按以下步骤解决：
 
 1. **检查绑定名称**：确保变量名完全为 `KV_LINKS`（区分大小写）
@@ -200,6 +233,41 @@
 3. **重新部署**：更新配置后，触发一次新的部署以应用更改
 4. **检查项目权限**：确认您的账户对KV命名空间有正确的访问权限
 5. **验证KV命名空间存在**：确认您绑定的KV命名空间仍存在且未被删除
+
+##### 2. Worker递归引用
+
+根据Cloudflare官方文档，1019错误也可能是由Worker递归引用自身导致的：
+
+- **问题描述**：当Worker脚本访问调用相同Worker脚本的URL时会发生递归
+- **解决方案**：项目代码已修复此问题，通过正确处理非API请求，避免使用`fetch(request)`导致的递归调用
+- **技术说明**：在Cloudflare Pages中，当Worker返回`undefined`时，请求会自动传递给静态文件处理系统
+
+##### 3. Pages Functions配置问题
+
+1. **检查目录结构**
+   - 确认`/functions/api`目录结构正确
+   - 验证`links.js`和`[linkId].js`文件存在且格式正确
+   - 检查文件是否包含正确的`onRequest`导出函数
+
+2. **检查API路由**
+   - 确认API请求路径与函数文件路径匹配
+   - 对于`/api/links`，应使用`/functions/api/links.js`
+   - 对于`/api/links/{id}`，应使用`/functions/api/links/[linkId].js`
+
+3. **验证函数导出**
+   - 确保每个函数文件正确导出`onRequest`函数
+   - 检查函数签名是否为`async function onRequest(context)`
+
+4. **检查错误日志**
+   - 在Cloudflare控制台中查看Pages部署日志
+   - 查找与Functions相关的错误消息
+   - 检查KV存储访问权限相关错误
+
+5. **确保无冲突**
+   - 确认`_worker.js`文件已简化，不再处理API请求
+   - 避免在Worker和Functions中同时定义相同的路由处理
+
+如果您仍然遇到此错误，请确保已部署最新版本的代码。
 
 #### 关于wrangler.toml配置
 
