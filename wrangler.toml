@@ -1,19 +1,19 @@
 # Cloudflare Pages 配置文件
 name = "youtube-link-manager"
-main = "_worker.js"
-type = "pages"
+
+# 页面构建输出目录（必需的配置）
+pages_build_output_dir = "."
 
 [build]
 command = ""
-upload.format = "pages"
 
-[env.production]
-# 生产环境配置
-
-# KV命名空间绑定
+# KV命名空间绑定配置
 [[kv_namespaces]]
 binding = "KV_LINKS"
-preview_id = "YOUR_PREVIEW_KV_ID"  # 预览环境的KV ID
+# 注意：实际部署时需要在Cloudflare控制台中配置KV命名空间ID
+# preview_id 用于本地开发预览
 
-# 注意：实际的KV ID需要在部署时在Cloudflare控制台中配置
-# 此文件主要用于本地开发和声明绑定需求
+# 注意事项：
+# 1. 此文件用于声明项目配置和KV绑定需求
+# 2. 实际部署时，KV_LINKS绑定需要在Cloudflare Pages控制台中手动配置
+# 3. 确保在Cloudflare控制台中创建KV命名空间并绑定为KV_LINKS

@@ -115,6 +115,11 @@ async function handleApiRequest(request, pathname, corsHeaders) {
  */
 async function getLinks() {
   try {
+    // 检查KV_LINKS是否存在（处理本地开发和部署配置问题）
+    if (typeof KV_LINKS === 'undefined') {
+      console.warn('KV_LINKS is not defined, returning empty links array');
+      return [];
+    }
     const data = await KV_LINKS.get(KV_KEY, 'json');
     return data?.links || [];
   } catch (error) {
@@ -132,6 +137,12 @@ async function saveLinks(newLinks) {
   }
   
   try {
+    // 检查KV_LINKS是否存在
+    if (typeof KV_LINKS === 'undefined') {
+      console.error('KV_LINKS is not defined, cannot save links');
+      throw new Error('KV storage is not available');
+    }
+    
     // 获取现有链接
     const existingData = await KV_LINKS.get(KV_KEY, 'json') || { links: [] };
     const existingLinks = existingData.links || [];
@@ -162,6 +173,12 @@ async function saveLinks(newLinks) {
  */
 async function deleteLink(linkId) {
   try {
+    // 检查KV_LINKS是否存在
+    if (typeof KV_LINKS === 'undefined') {
+      console.error('KV_LINKS is not defined, cannot delete link');
+      throw new Error('KV storage is not available');
+    }
+    
     // 获取现有链接
     const existingData = await KV_LINKS.get(KV_KEY, 'json') || { links: [] };
     const existingLinks = existingData.links || [];
@@ -187,6 +204,12 @@ async function deleteLink(linkId) {
  */
 async function clearAllLinks() {
   try {
+    // 检查KV_LINKS是否存在
+    if (typeof KV_LINKS === 'undefined') {
+      console.error('KV_LINKS is not defined, cannot clear links');
+      throw new Error('KV storage is not available');
+    }
+    
     await KV_LINKS.put(KV_KEY, JSON.stringify({ links: [] }));
     return { message: 'All links cleared successfully' };
   } catch (error) {
