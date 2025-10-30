@@ -3,7 +3,3 @@ name = "youtube-link-manager"
 
 # 构建输出目录
 pages_build_output_dir = ""
-
-# 空构建命令，让Cloudflare Pages使用默认构建流程
-[build]
-  command = ""
