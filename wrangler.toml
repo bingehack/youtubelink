@@ -5,7 +5,6 @@ name = "youtube-link-manager"
 pages_build_output_dir = ""
 
 # KV 命名空间配置 - 用于数据持久化
-[kv_namespaces]
-binding = "KV_LINKS" # 绑定到代码中使用的变量名
-id = "YOUTUBE_LINK_KV" # KV命名空间ID，在Cloudflare控制台中创建后填写
-preview_id = "YOUTUBE_LINK_KV_PREVIEW" # 预览环境的KV命名空间ID（可选）
+kv_namespaces = [
+  { binding = "KV_LINKS", id = "YOUTUBE_LINK_KV", preview_id = "YOUTUBE_LINK_KV_PREVIEW" }
+]
