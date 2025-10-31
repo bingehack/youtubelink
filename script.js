@@ -748,7 +748,12 @@ async function saveLinks(links = youtubeLinksItems, silent = false) {
         // KV存储配置错误
         console.error('KV存储配置问题：无法进行跨浏览器数据同步');
         if (typeof showNotification === 'function') {
-          showNotification('KV存储未正确配置，无法进行跨浏览器数据同步。请检查Cloudflare Pages设置。', 'error');
+          // 显示更详细的配置指南通知
+          showNotification(
+            'KV存储配置问题：\n1. 检查wrangler.toml文件中的kv_namespaces配置\n2. 确保已填入正确的YOUTUBE_LINK_KV命名空间ID\n3. 重新部署项目以应用更改', 
+            'error',
+            10000
+          );
         }
       } else if (localSuccess && !serverSuccess) {
         // 本地成功但服务器失败
@@ -847,7 +852,17 @@ async function checkKVStorageStatus() {
       console.error('KV存储状态缓存显示配置错误');
       // 显示KV存储错误信息
       if (typeof showNotification === 'function' && !localStorage.getItem('kv_warning_shown')) {
-        showNotification('检测到KV存储未正确配置，无法进行跨浏览器数据同步。请参考README中的部署指南进行配置。', 'error');
+        // 创建一个更详细的KV配置指南通知
+        const notificationContent = `KV存储配置错误 - 跨浏览器同步不可用\n\n` +
+          `由于项目使用wrangler.toml管理KV绑定，请按以下步骤配置：\n\n` +
+          `1. 在Cloudflare控制台创建名为YOUTUBE_LINK_KV的KV命名空间\n` +
+          `2. 获取该命名空间的ID（随机字符串格式）\n` +
+          `3. 打开项目的wrangler.toml文件\n` +
+          `4. 将YOUR_ACTUAL_KV_NAMESPACE_ID替换为您的实际KV命名空间ID\n` +
+          `5. 保存文件并重新部署项目\n\n` +
+          `详细指南请参考项目的README.md文档`;
+        
+        showNotification(notificationContent, 'error', 15000);
         localStorage.setItem('kv_warning_shown', 'true'); // 避免重复显示
       }
       return false;
@@ -872,16 +887,35 @@ async function checkKVStorageStatus() {
       }
       
       // 检查是否是KV存储配置错误
-      if (response.status === 503 && errorData.error && errorData.error.includes('KV_LINKS')) {
-        console.error('KV存储配置问题:', errorData.error);
-        localStorage.setItem('kv_storage_status', 'error');
-        // 显示KV存储错误信息
-        if (typeof showNotification === 'function' && !localStorage.getItem('kv_warning_shown')) {
-          showNotification(`KV存储配置错误: ${errorData.error}。请参考README中的部署指南进行配置。`, 'error');
-          localStorage.setItem('kv_warning_shown', 'true'); // 避免重复显示
+        if (response.status === 503 && errorData.error && errorData.error.includes('KV_LINKS')) {
+          console.error('KV存储配置问题:', errorData.error);
+          console.error('详细说明:', errorData.note || '');
+          if (errorData.guidance) {
+            console.error('配置指南:', errorData.guidance);
+          }
+          
+          localStorage.setItem('kv_storage_status', 'error');
+          // 显示KV存储错误信息
+          if (typeof showNotification === 'function' && !localStorage.getItem('kv_warning_shown')) {
+            // 创建一个包含服务器返回的所有相关信息的详细通知
+            let notificationContent = `KV存储配置错误: ${errorData.error}\n`;
+            
+            if (errorData.note) {
+              notificationContent += `\n${errorData.note}\n`;
+            }
+            
+            if (errorData.guidance) {
+              notificationContent += `\n配置步骤:\n${errorData.guidance}`;
+            } else {
+              // 默认配置指南
+              notificationContent += `\n\n配置步骤:\n1. 检查wrangler.toml中的kv_namespaces配置\n2. 确保已填入正确的YOUTUBE_LINK_KV命名空间ID\n3. 重新部署项目`;
+            }
+            
+            showNotification(notificationContent, 'error', 15000);
+            localStorage.setItem('kv_warning_shown', 'true'); // 避免重复显示
+          }
+          return false;
         }
-        return false;
-      }
     } else {
       // 清除之前的错误状态
       localStorage.removeItem('kv_storage_status');
@@ -905,7 +939,8 @@ async function checkKVStorageStatus() {
     if (error.message && error.message.includes('KV存储配置错误')) {
       localStorage.setItem('kv_storage_status', 'error');
       if (typeof showNotification === 'function' && !localStorage.getItem('kv_warning_shown')) {
-        showNotification(`KV存储配置错误: ${error.message}。请参考README中的部署指南进行配置。`, 'error');
+        // 直接使用错误消息中的完整内容
+        showNotification(error.message, 'error', 15000);
         localStorage.setItem('kv_warning_shown', 'true');
       }
     }

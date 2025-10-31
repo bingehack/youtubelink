@@ -39,7 +39,7 @@ async function loadLinksFromServer() {
       try {
         errorData = await response.json();
       } catch (e) {
-        errorData = { error: '无法解析错误响应' };
+        errorData = { error: '无法解析错误响应', note: '', guidance: '' };
       }
       
       console.error('Failed to load links from server:', response.status, errorData);
@@ -47,8 +47,21 @@ async function loadLinksFromServer() {
       // 如果是503错误，很可能是KV存储未配置
       if (response.status === 503 && errorData.error && errorData.error.includes('KV_LINKS')) {
         console.error('KV存储配置问题:', errorData.error);
-        // 抛出特定错误，让调用者知道这是KV存储问题
-        throw new Error(`KV存储配置错误: ${errorData.error}`);
+        console.error('详细说明:', errorData.note);
+        if (errorData.guidance) {
+          console.error('配置指南:', errorData.guidance);
+        }
+        
+        // 构建包含完整信息的错误消息
+        let errorMessage = `KV存储配置错误: ${errorData.error}`;
+        if (errorData.note) {
+          errorMessage += `\n${errorData.note}`;
+        }
+        if (errorData.guidance) {
+          errorMessage += `\n\n配置步骤:\n${errorData.guidance}`;
+        }
+        
+        throw new Error(errorMessage);
       }
       
       // 如果是在开发环境，尝试切换到本地开发服务器
@@ -104,7 +117,7 @@ async function saveLinksToServer(links) {
       try {
         errorData = await response.json();
       } catch (e) {
-        errorData = { error: '无法解析错误响应' };
+        errorData = { error: '无法解析错误响应', note: '', guidance: '' };
       }
       
       console.error('Failed to save links to server:', response.status, errorData);
@@ -112,8 +125,21 @@ async function saveLinksToServer(links) {
       // 如果是503错误，很可能是KV存储未配置
       if (response.status === 503 && errorData.error && errorData.error.includes('KV_LINKS')) {
         console.error('KV存储配置问题:', errorData.error);
-        // 抛出特定错误，让调用者知道这是KV存储问题
-        throw new Error(`KV存储配置错误: ${errorData.error}`);
+        console.error('详细说明:', errorData.note);
+        if (errorData.guidance) {
+          console.error('配置指南:', errorData.guidance);
+        }
+        
+        // 构建包含完整信息的错误消息
+        let errorMessage = `KV存储配置错误: ${errorData.error}`;
+        if (errorData.note) {
+          errorMessage += `\n${errorData.note}`;
+        }
+        if (errorData.guidance) {
+          errorMessage += `\n\n配置步骤:\n${errorData.guidance}`;
+        }
+        
+        throw new Error(errorMessage);
       }
       
       // 如果是在开发环境，尝试切换到本地开发服务器

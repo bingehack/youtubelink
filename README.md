@@ -241,7 +241,7 @@
 
 ## KV命名空间配置
 
-为了实现跨浏览器数据同步功能，您必须在Cloudflare Pages中正确配置KV存储。以下是详细的配置步骤：
+为了实现跨浏览器数据同步功能，您必须在Cloudflare Pages中正确配置KV存储。由于项目使用wrangler.toml管理绑定，需要按照以下步骤操作：
 
 ### 1. 创建KV命名空间
 
@@ -251,15 +251,27 @@
 4. 输入名称`YOUTUBE_LINK_KV`
 5. 点击`创建`按钮
 
-### 2. 绑定KV命名空间到Pages项目
+### 2. 获取KV命名空间ID
 
-1. 在Cloudflare控制台中，导航到您的Pages项目
-2. 进入`设置` → `函数` → `KV命名空间绑定`
-3. 点击`添加绑定`
-4. 在`变量名称`字段中输入`KV_LINKS`（**必须使用此名称**）
-5. 在`KV命名空间`下拉菜单中选择刚才创建的`YOUTUBE_LINK_KV`
-6. 点击`保存`按钮
-7. 重新部署您的Pages项目以应用更改
+1. 创建完成后，在KV命名空间列表中找到`YOUTUBE_LINK_KV`
+2. 查看该命名空间的ID（格式为随机字符串）
+3. 复制这个ID，您需要将其粘贴到wrangler.toml文件中
+
+### 3. 配置wrangler.toml文件
+
+1. 打开项目中的`wrangler.toml`文件
+2. 找到`kv_namespaces`配置部分
+3. 将`YOUR_ACTUAL_KV_NAMESPACE_ID`替换为您刚才复制的KV命名空间ID
+4. 对于`preview_id`，您可以：
+   - 使用与`id`相同的值（推荐用于简单部署）
+   - 或者创建一个专门的预览环境KV命名空间并使用其ID
+
+### 4. 部署更新后的配置
+
+1. 保存wrangler.toml文件
+2. 使用git将更新推送到您的源代码仓库
+3. Cloudflare Pages将自动检测更改并重新部署项目
+4. 部署完成后，KV存储应该能够正常工作
 
 ### 3. 验证配置是否正确
 
