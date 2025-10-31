@@ -257,14 +257,21 @@
 2. 查看该命名空间的ID（格式为随机字符串）
 3. 复制这个ID，您需要将其粘贴到wrangler.toml文件中
 
+### 重要说明：关于KV绑定名称
+
+当您在Cloudflare控制台查看KV命名空间时，可能会看到一个默认的绑定名（如`KV_BINDING`）。但请务必注意：
+
+- **无论控制台显示什么绑定名**，在wrangler.toml文件中您**必须**使用`KV_LINKS`作为binding值
+- 这是因为应用代码中硬编码了`KV_LINKS`变量名用于访问KV存储
+- 您只需要复制正确的命名空间ID，而不必关心控制台中显示的默认绑定名
+
 ### 3. 配置wrangler.toml文件
 
 1. 打开项目中的`wrangler.toml`文件
 2. 找到`kv_namespaces`配置部分
-3. 将`YOUR_ACTUAL_KV_NAMESPACE_ID`替换为您刚才复制的KV命名空间ID
-4. 对于`preview_id`，您可以：
-   - 使用与`id`相同的值（推荐用于简单部署）
-   - 或者创建一个专门的预览环境KV命名空间并使用其ID
+3. 将ID值替换为您刚才复制的KV命名空间ID
+4. 确保binding值保持为`KV_LINKS`（不要更改）
+5. 移除或省略`preview_id`（使用同一个KV命名空间ID用于生产和预览环境）
 
 ### 4. 部署更新后的配置
 

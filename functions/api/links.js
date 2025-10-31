@@ -29,13 +29,31 @@ function errorResponse(message, status = 500) {
   });
 }
 
-// Check if KV storage is available and properly configured
+// 检查KV存储是否可用
 function kvAvailable() {
-  const available = typeof KV_LINKS !== 'undefined' && KV_LINKS !== null;
-  if (!available) {
-    console.error('KV_LINKS not available. Please check your wrangler.toml configuration for proper KV namespace binding.');
+  try {
+    // 在Cloudflare Pages环境中，KV绑定可能以不同方式存在
+    console.log('检查KV_LINKS可用性...');
+    
+    // 检查KV_LINKS是否存在且不为null或undefined
+    if (typeof KV_LINKS === 'undefined' || KV_LINKS === null) {
+      console.error('KV_LINKS未定义或为null，检查wrangler.toml配置');
+      return false;
+    }
+    
+    // 检查KV_LINKS是否具有基本方法（如get、put等）
+    if (typeof KV_LINKS !== 'object' || !KV_LINKS) {
+      console.error('KV_LINKS存在但不是有效对象');
+      return false;
+    }
+    
+    console.log('KV_LINKS已成功检测到');
+    return true;
+  } catch (error) {
+    console.error('KV_LINKS可用性检查出错：', error.message || error);
+    console.error('检查要点：\n1. wrangler.toml中的binding值必须为KV_LINKS\n2. 确保ID值正确\n3. 移除或正确配置preview_id');
+    return false;
   }
-  return available;
 }
 
 // Log function that works in both browser and Cloudflare environment
@@ -153,9 +171,9 @@ export async function onRequest(context) {
     log('KV_LINKS命名空间未绑定或配置不正确', 'error');
     return new Response(JSON.stringify({
       error: 'KV_LINKS命名空间未配置或配置不正确，无法获取跨浏览器数据',
-      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保已正确设置YOUTUBE_LINK_KV命名空间ID',
+      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保binding=\"KV_LINKS\"且ID正确设置',
       success: false,
-      guidance: '1. 确保在Cloudflare控制台创建了YOUTUBE_LINK_KV命名空间\n2. 获取其ID并正确配置到wrangler.toml文件\n3. 重新部署项目以应用配置更改'
+      guidance: '1. 确保在wrangler.toml中正确设置：binding=\"KV_LINKS\"\n2. 使用正确的命名空间ID：\'90657b7f0780467eaa0e9ee9f55bdf92\'\n3. 移除或省略preview_id参数\n4. 重新部署项目以应用配置更改'
     }), { headers: corsHeaders, status: 503 });
   }
       
@@ -201,9 +219,9 @@ export async function onRequest(context) {
     log('KV_LINKS命名空间未绑定或配置不正确', 'error');
     return new Response(JSON.stringify({
       error: 'KV_LINKS命名空间未配置或配置不正确，无法进行跨浏览器数据同步',
-      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保已正确设置YOUTUBE_LINK_KV命名空间ID',
+      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保binding=\"KV_LINKS\"且ID正确设置',
       success: false,
-      guidance: '1. 确保在Cloudflare控制台创建了YOUTUBE_LINK_KV命名空间\n2. 获取其ID并正确配置到wrangler.toml文件\n3. 重新部署项目以应用配置更改'
+      guidance: '1. 确保在wrangler.toml中正确设置：binding=\"KV_LINKS\"\n2. 使用正确的命名空间ID：\'90657b7f0780467eaa0e9ee9f55bdf92\'\n3. 移除或省略preview_id参数\n4. 重新部署项目以应用配置更改'
     }), { headers: corsHeaders, status: 503 });
   }
       
@@ -232,9 +250,9 @@ export async function onRequest(context) {
     log('KV_LINKS命名空间未绑定或配置不正确', 'error');
     return new Response(JSON.stringify({
       error: 'KV_LINKS命名空间未配置或配置不正确，无法进行跨浏览器数据同步',
-      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保已正确设置YOUTUBE_LINK_KV命名空间ID',
+      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保binding=\"KV_LINKS\"且ID正确设置',
       success: false,
-      guidance: '1. 确保在Cloudflare控制台创建了YOUTUBE_LINK_KV命名空间\n2. 获取其ID并正确配置到wrangler.toml文件\n3. 重新部署项目以应用配置更改'
+      guidance: '1. 确保在wrangler.toml中正确设置：binding=\"KV_LINKS\"\n2. 使用正确的命名空间ID：\'90657b7f0780467eaa0e9ee9f55bdf92\'\n3. 移除或省略preview_id参数\n4. 重新部署项目以应用配置更改'
     }), { headers: corsHeaders, status: 503 });
   }
       
