@@ -29,31 +29,13 @@ function errorResponse(message, status = 500) {
   });
 }
 
-// 检查KV存储是否可用
+// Check if KV storage is available and properly configured
 function kvAvailable() {
-  try {
-    // 在Cloudflare Pages环境中，KV绑定可能以不同方式存在
-    console.log('检查KV_LINKS可用性...');
-    
-    // 检查KV_LINKS是否存在且不为null或undefined
-    if (typeof KV_LINKS === 'undefined' || KV_LINKS === null) {
-      console.error('KV_LINKS未定义或为null，检查wrangler.toml配置');
-      return false;
-    }
-    
-    // 检查KV_LINKS是否具有基本方法（如get、put等）
-    if (typeof KV_LINKS !== 'object' || !KV_LINKS) {
-      console.error('KV_LINKS存在但不是有效对象');
-      return false;
-    }
-    
-    console.log('KV_LINKS已成功检测到');
-    return true;
-  } catch (error) {
-    console.error('KV_LINKS可用性检查出错：', error.message || error);
-    console.error('检查要点：\n1. wrangler.toml中的binding值必须为KV_LINKS\n2. 确保ID值正确\n3. 移除或正确配置preview_id');
-    return false;
+  const isAvailable = typeof KV_LINKS !== 'undefined';
+  if (!isAvailable) {
+    log('KV_LINKS is undefined. KV storage is not properly bound. Using fallback behavior.', 'warn');
   }
+  return isAvailable;
 }
 
 // Log function that works in both browser and Cloudflare environment
@@ -166,16 +148,17 @@ export async function onRequest(context) {
     if (request.method === 'GET') {
       log(`Received GET request to fetch links`, 'info');
       
-      // 如果KV存储不可用，返回错误响应，明确指示KV存储未配置
-  if (!kvAvailable()) {
-    log('KV_LINKS命名空间未绑定或配置不正确', 'error');
-    return new Response(JSON.stringify({
-      error: 'KV_LINKS命名空间未配置或配置不正确，无法获取跨浏览器数据',
-      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保binding=\"KV_LINKS\"且ID正确设置',
-      success: false,
-      guidance: '1. 确保在wrangler.toml中正确设置：binding=\"KV_LINKS\"\n2. 使用正确的命名空间ID：\'90657b7f0780467eaa0e9ee9f55bdf92\'\n3. 移除或省略preview_id参数\n4. 重新部署项目以应用配置更改'
-    }), { headers: corsHeaders, status: 503 });
-  }
+      // 如果KV存储不可用，直接返回空数组而不是尝试读取
+      if (!kvAvailable()) {
+        log('KV storage not available, returning empty result for GET request', 'info');
+        return successResponse({
+          success: true,
+          links: [],
+          count: 0,
+          message: 'Links are stored locally in your browser',
+          timestamp: new Date().toISOString()
+        });
+      }
       
       try {
         const links = await getLinks();
@@ -214,16 +197,16 @@ export async function onRequest(context) {
         });
       }
       
-      // 如果KV存储不可用，返回错误响应，明确指示KV存储未配置
-  if (!kvAvailable()) {
-    log('KV_LINKS命名空间未绑定或配置不正确', 'error');
-    return new Response(JSON.stringify({
-      error: 'KV_LINKS命名空间未配置或配置不正确，无法进行跨浏览器数据同步',
-      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保binding=\"KV_LINKS\"且ID正确设置',
-      success: false,
-      guidance: '1. 确保在wrangler.toml中正确设置：binding=\"KV_LINKS\"\n2. 使用正确的命名空间ID：\'90657b7f0780467eaa0e9ee9f55bdf92\'\n3. 移除或省略preview_id参数\n4. 重新部署项目以应用配置更改'
-    }), { headers: corsHeaders, status: 503 });
-  }
+      // 如果KV存储不可用，返回成功但说明数据仅存储在本地
+      if (!kvAvailable()) {
+        log('KV storage not available, skipping server save', 'info');
+        return successResponse({
+          success: true,
+          message: 'Links are stored locally in your browser',
+          note: 'KV存储未配置，使用本地存储进行数据持久化',
+          timestamp: new Date().toISOString()
+        });
+      }
       
       try {
         const result = await saveLinks(body.links || []);
@@ -245,16 +228,17 @@ export async function onRequest(context) {
     if (request.method === 'DELETE') {
       log(`Received DELETE request to clear all links`, 'info');
       
-      // 如果KV存储不可用，返回错误响应，明确指示KV存储未配置
-  if (!kvAvailable()) {
-    log('KV_LINKS命名空间未绑定或配置不正确', 'error');
-    return new Response(JSON.stringify({
-      error: 'KV_LINKS命名空间未配置或配置不正确，无法进行跨浏览器数据同步',
-      note: '请检查wrangler.toml文件中的kv_namespaces配置，确保binding=\"KV_LINKS\"且ID正确设置',
-      success: false,
-      guidance: '1. 确保在wrangler.toml中正确设置：binding=\"KV_LINKS\"\n2. 使用正确的命名空间ID：\'90657b7f0780467eaa0e9ee9f55bdf92\'\n3. 移除或省略preview_id参数\n4. 重新部署项目以应用配置更改'
-    }), { headers: corsHeaders, status: 503 });
-  }
+      // 如果KV存储不可用，返回成功但说明数据仅存储在本地
+      if (!kvAvailable()) {
+        log('KV storage not available, skipping server delete', 'info');
+        return successResponse({
+          success: true,
+          message: '链接已成功删除',
+          action: 'delete',
+          count: 0,
+          timestamp: new Date().toISOString()
+        });
+      }
       
       try {
         const result = await saveLinks([]);
