@@ -7,6 +7,6 @@ pages_build_output_dir = ""
 # KV 命名空间配置 - 用于数据持久化
 # 注意：请将以下ID替换为在Cloudflare控制台中创建的实际YOUTUBE_LINK_KV命名空间ID
 kv_namespaces = [
-  { binding = "KV_LINKS", id = "YOUR_ACTUAL_KV_NAMESPACE_ID", preview_id = "YOUR_ACTUAL_PREVIEW_KV_NAMESPACE_ID" }
+  { binding = "KV_LINKS", id = "90657b7f0780467eaa0e9ee9f55bdf92", preview_id = "YOUR_ACTUAL_PREVIEW_KV_NAMESPACE_ID" }
 ]
 # 由于KV_LINKS变量名在代码中已硬编码，请勿修改binding值
